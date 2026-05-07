@@ -195,6 +195,9 @@ td.pos{color:var(--green)}td.neg{color:var(--red)}
   background:var(--surface2);border:1px solid var(--border);border-radius:20px;
   padding:8px 10px 8px 14px;font-size:14px;
 }
+.chip-tog{cursor:pointer;padding:7px 13px;transition:opacity .15s,background .15s;-webkit-user-select:none;user-select:none}
+.chip-tog.off{opacity:.3}
+.chip-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
 .chip-del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;line-height:1;padding:0;width:22px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:50%;transition:background .15s}
 .chip-del:active{background:var(--red);color:#fff}
 
@@ -329,8 +332,9 @@ td.pos{color:var(--green)}td.neg{color:var(--red)}
         <div class="tbl-wrap"><table id="dataTable"><thead><tr><th>日期</th></tr></thead><tbody></tbody></table></div>
       </div>
       <div class="card" style="margin-top:0">
-        <div class="card-title">累计积分折线图</div>
-        <div style="height:300px"><canvas id="lineChart"></canvas></div>
+        <div class="card-title">累计积分折线图 <span style="color:var(--muted);font-size:10px;font-weight:400;text-transform:none">（点击选手 chip 切换显示）</span></div>
+        <div class="player-chips" id="chartChips" style="margin-bottom:12px"></div>
+        <div style="height:420px"><canvas id="lineChart"></canvas></div>
       </div>
       <div class="card">
         <div class="card-title">彩头计算 <span style="color:var(--muted);font-size:10px;font-weight:400;text-transform:none">80分 = £1，点选场次</span></div>
@@ -432,11 +436,12 @@ td.pos{color:var(--green)}td.neg{color:var(--red)}
 // ═══════════════════════════ CONFIG ═══════════════════════════
 const LS_CFG = 'jifen_cfg_v3';
 let cfg = {apiKey:'',binId:'',demo:false};
-let db = {matches:[],players:[]};
+let db = {matches:[],players:[],hidden:[]};
 let tableMode = 'cumulative';
 let editingIdx = -1;
 let selectedPrize = new Set();
 let chartInst = null;
+let curPage='rank';
 
 function loadCfg(){ try{const s=localStorage.getItem(LS_CFG);if(s)cfg=JSON.parse(s);}catch{} }
 function saveCfg(){ localStorage.setItem(LS_CFG,JSON.stringify(cfg)); }
@@ -488,14 +493,14 @@ async function loadCloud(){
       const j=await res.json();
       if(j.metadata?.id){
         cfg.binId=j.metadata.id;saveCfg();
-        db={matches:[],players:[]};
+        db={matches:[],players:[],hidden:[]};
         syncUI('ok',now());renderAll();
       }else{syncUI('err','创建失败');showToast('❌ 检查 API Key');}
       return;
     }
     const res=await fetch(`https://api.jsonbin.io/v3/b/${cfg.binId}/latest`,{headers:{'X-Master-Key':cfg.apiKey}});
     const j=await res.json();
-    if(j.record){db={matches:j.record.matches||[],players:j.record.players||[]};syncUI('ok',now());renderAll();}
+    if(j.record){db={matches:j.record.matches||[],players:j.record.players||[],hidden:j.record.hidden||[]};syncUI('ok',now());renderAll();}
     else syncUI('err','读取失败');
   }catch{syncUI('err','网络错误');}
 }
@@ -506,7 +511,7 @@ async function pushCloud(){
     const res=await fetch(`https://api.jsonbin.io/v3/b/${cfg.binId}`,{
       method:'PUT',
       headers:{'Content-Type':'application/json','X-Master-Key':cfg.apiKey},
-      body:JSON.stringify({matches:db.matches,players:db.players})
+      body:JSON.stringify({matches:db.matches,players:db.players,hidden:db.hidden||[]})
     });
     const j=await res.json();
     if(j.record)syncUI('ok',now());
@@ -530,7 +535,6 @@ function finalTotals(){
 }
 
 // ═══════════════════════════ NAV ═══════════════════════════
-let curPage='rank';
 function navTo(id){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
@@ -538,7 +542,7 @@ function navTo(id){
   document.getElementById('nav-'+id).classList.add('active');
   curPage=id;
   if(id==='history')renderHistory();
-  if(id==='chart'){renderTable();renderChart();renderPrize();}
+  if(id==='chart'){renderTable();renderChartChips();renderChart();renderPrize();}
   if(id==='players')renderPlayers();
 }
 
@@ -546,7 +550,7 @@ function renderAll(){
   renderRank();
   renderScoreList();
   if(curPage==='history')renderHistory();
-  if(curPage==='chart'){renderTable();renderChart();renderPrize();}
+  if(curPage==='chart'){renderTable();renderChartChips();renderChart();renderPrize();}
   if(curPage==='players')renderPlayers();
 }
 
@@ -669,7 +673,7 @@ function toggleTblMode(){
   renderTable();
 }
 function renderTable(){
-  const p=roster(),ms=sortedMatches(),tbl=document.getElementById('dataTable');
+  const all=roster(),hid=new Set(db.hidden||[]),p=all.filter(n=>!hid.has(n)),ms=sortedMatches(),tbl=document.getElementById('dataTable');
   if(!ms.length){tbl.innerHTML='<thead><tr><th>暂无数据</th></tr></thead><tbody></tbody>';return;}
   const tot={};p.forEach(n=>tot[n]=0);
   const rows=ms.map(m=>{
@@ -681,16 +685,40 @@ function renderTable(){
 }
 
 // ═══════════════════════════ CHART ═══════════════════════════
-const COLORS=['#f0c060','#6ab4ff','#a78bfa','#5de8b0','#ff6b6b','#fbbf24','#34d399','#60a5fa','#f472b6','#a3e635'];
+function colorFor(i,total){
+  // HSL evenly spaced — guaranteed distinct for any N
+  const hue=Math.round((i*360/Math.max(total,1))%360);
+  return`hsl(${hue},72%,62%)`;
+}
+function renderChartChips(){
+  const all=roster(),hid=new Set(db.hidden||[]),box=document.getElementById('chartChips');
+  if(!box)return;
+  if(!all.length){box.innerHTML='';return;}
+  box.innerHTML=all.map((n,i)=>{
+    const off=hid.has(n)?'off':'';
+    const c=colorFor(i,all.length);
+    return`<span class="chip chip-tog ${off}" onclick="togChartHidden('${n.replace(/'/g,"\\'")}')"><span class="chip-dot" style="background:${c}"></span>${n}</span>`;
+  }).join('');
+}
+function togChartHidden(name){
+  db.hidden=db.hidden||[];
+  if(db.hidden.includes(name))db.hidden=db.hidden.filter(x=>x!==name);
+  else db.hidden.push(name);
+  pushCloud();
+  renderChartChips();renderChart();renderTable();
+}
 function renderChart(){
-  const p=roster(),ms=sortedMatches(),canvas=document.getElementById('lineChart');
+  const all=roster(),hid=new Set(db.hidden||[]),ms=sortedMatches(),canvas=document.getElementById('lineChart');
   if(chartInst){chartInst.destroy();chartInst=null;}
   if(!ms.length)return;
-  const datasets=p.map((n,i)=>{
+  const visible=all.filter(n=>!hid.has(n));
+  const datasets=visible.map(n=>{
+    const i=all.indexOf(n);
     let c=0;const data=ms.map(m=>{c+=parseInt(m.scores[n]||0);return c;});
-    return{label:n,data,borderColor:COLORS[i%COLORS.length],backgroundColor:COLORS[i%COLORS.length]+'22',borderWidth:2,pointRadius:3,tension:.3,fill:false};
+    const col=colorFor(i,all.length);
+    return{label:n,data,borderColor:col,backgroundColor:col+'33',borderWidth:2.5,pointRadius:4,pointHoverRadius:6,tension:.3,fill:false};
   });
-  chartInst=new Chart(canvas,{type:'line',data:{labels:ms.map(m=>m.date.slice(5)),datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#eeeef5',font:{family:'Noto Sans SC',size:11},boxWidth:12}}},scales:{x:{ticks:{color:'#6868a0',font:{size:10}},grid:{color:'#2e2e3e'}},y:{ticks:{color:'#6868a0',font:{size:10}},grid:{color:'#2e2e3e'}}}}});
+  chartInst=new Chart(canvas,{type:'line',data:{labels:ms.map(m=>m.date.slice(5)),datasets},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'nearest',intersect:false},plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6868a0',font:{size:11}},grid:{color:'#2e2e3e'}},y:{ticks:{color:'#6868a0',font:{size:11}},grid:{color:'#2e2e3e'}}}}});
 }
 
 // ═══════════════════════════ PRIZE ═══════════════════════════
@@ -812,10 +840,14 @@ function checkViewer(){
 }
 
 async function launchViewer(binId,apiKey){
+  document.documentElement.style.cssText='height:auto;overflow:visible;overflow-y:auto';
+  let viewerChart=null;
+  function vColor(i,total){const hue=Math.round((i*360/Math.max(total,1))%360);return`hsl(${hue},72%,62%)`;}
   document.body.innerHTML=`
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;600;700;900&family=JetBrains+Mono:wght@600&display=swap');
     *{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:auto !important;overflow:visible !important;overflow-y:auto !important;overscroll-behavior:auto !important}
     body{background:#0f0f13;color:#eeeef5;font-family:'Noto Sans SC',sans-serif;min-height:100vh}
     header{background:#18181f;border-bottom:1px solid #2e2e3e;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}
     .logo{font-size:18px;font-weight:900;background:linear-gradient(135deg,#f0c060,#6ab4ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
@@ -836,6 +868,18 @@ async function launchViewer(binId,apiKey){
     .spin{display:inline-block;width:24px;height:24px;border:2px solid #2e2e3e;border-top-color:#f0c060;border-radius:50%;animation:sp .8s linear infinite}
     @keyframes sp{to{transform:rotate(360deg)}}
     button.rf-btn{background:#18181f;border:1px solid #2e2e3e;color:#6ab4ff;font-family:'Noto Sans SC',sans-serif;font-size:12px;padding:6px 14px;border-radius:8px;cursor:pointer}
+    .card{background:#18181f;border:1px solid #2e2e3e;border-radius:16px;padding:16px;margin-top:24px}
+    .card h2{margin-bottom:12px}
+    .chart-box{height:420px;position:relative}
+    .chip-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+    .vchip{display:inline-flex;align-items:center;gap:6px;background:#22222e;border:1px solid #2e2e3e;border-radius:20px;padding:5px 11px 5px 9px;font-size:12px;color:#eeeef5;-webkit-user-select:none;user-select:none}
+    .vchip-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+    .tbl-wrap{overflow-x:auto;border-radius:10px;border:1px solid #2e2e3e}
+    table{width:100%;border-collapse:collapse;font-size:12px;font-family:'JetBrains Mono',monospace;white-space:nowrap}
+    th{background:#22222e;color:#6868a0;font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:9px 10px;text-align:left;border-bottom:1px solid #2e2e3e}
+    td{padding:9px 10px;border-bottom:1px solid #3a3a52}
+    tr:last-child td{border-bottom:none}
+    td.pos{color:#5de8b0}td.neg{color:#ff6b6b}
   </style>
   <header>
     <div class="logo">🏆 积分排行榜</div>
@@ -847,6 +891,15 @@ async function launchViewer(binId,apiKey){
   <div class="wrap">
     <h2>当前总积分排名</h2>
     <div class="list" id="list"><div class="loading"><div class="spin"></div><br><br>加载中…</div></div>
+    <div class="card" id="chartCard" style="display:none">
+      <h2>累计积分趋势</h2>
+      <div class="chip-row" id="chipRow"></div>
+      <div class="chart-box"><canvas id="trendChart"></canvas></div>
+    </div>
+    <div class="card" id="tableCard" style="display:none">
+      <h2>每场后累计积分</h2>
+      <div class="tbl-wrap"><table id="trendTable"></table></div>
+    </div>
     <div class="footer" id="foot"></div>
   </div>`;
 
@@ -872,8 +925,43 @@ async function launchViewer(binId,apiKey){
       const t=new Date().toLocaleTimeString('zh',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
       document.getElementById('rfInfo').textContent='更新 '+t;
       document.getElementById('foot').textContent=`${sorted.length}名选手 · ${ms.length}场比赛 · 30秒自动刷新`;
+      const hid=new Set(d.hidden||[]);
+      renderTrend(players,ms,hid);
     }catch{document.getElementById('list').innerHTML='<div class="loading" style="color:#ff6b6b">网络错误</div>';document.getElementById('rfInfo').textContent='加载失败';}
   }
+
+  function renderTrend(allPlayers,ms,hid){
+    const chartCard=document.getElementById('chartCard'),tableCard=document.getElementById('tableCard');
+    const visible=allPlayers.filter(n=>!hid.has(n));
+    if(!ms.length||!visible.length){chartCard.style.display='none';tableCard.style.display='none';return;}
+    chartCard.style.display='block';tableCard.style.display='block';
+
+    const chipRow=document.getElementById('chipRow');
+    chipRow.innerHTML=visible.map(n=>{
+      const i=allPlayers.indexOf(n);
+      const c=vColor(i,allPlayers.length);
+      return`<span class="vchip"><span class="vchip-dot" style="background:${c}"></span>${n}</span>`;
+    }).join('');
+
+    const datasets=visible.map(n=>{
+      const i=allPlayers.indexOf(n);
+      let c=0;const data=ms.map(m=>{c+=parseInt(m.scores[n]||0);return c;});
+      const col=vColor(i,allPlayers.length);
+      return{label:n,data,borderColor:col,backgroundColor:col+'33',borderWidth:2.5,pointRadius:4,pointHoverRadius:6,tension:.3,fill:false};
+    });
+    if(viewerChart)viewerChart.destroy();
+    viewerChart=new Chart(document.getElementById('trendChart'),{type:'line',data:{labels:ms.map(m=>m.date.slice(5)),datasets},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'nearest',intersect:false},plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6868a0',font:{size:11}},grid:{color:'#2e2e3e'}},y:{ticks:{color:'#6868a0',font:{size:11}},grid:{color:'#2e2e3e'}}}}});
+
+    const tot={};visible.forEach(n=>tot[n]=0);
+    const rows=ms.map(m=>{
+      visible.forEach(n=>{tot[n]+=parseInt(m.scores[n]||0);});
+      const cells=visible.map(n=>{const v=tot[n];return`<td class="${v>0?'pos':v<0?'neg':''}">${v>0?'+':''}${v}</td>`;}).join('');
+      return`<tr><td>${m.date}</td>${cells}</tr>`;
+    }).join('');
+    document.getElementById('trendTable').innerHTML=`<thead><tr><th>日期</th>${visible.map(n=>`<th>${n}</th>`).join('')}</tr></thead><tbody>${rows}</tbody>`;
+  }
+  window.fetchAndShow=fetchAndShow;
+  document.body.style.cssText='height:auto;overflow:visible;overflow-y:auto;overscroll-behavior:auto;background:#0f0f13;color:#eeeef5;font-family:Noto Sans SC,sans-serif;min-height:100vh;margin:0';
   fetchAndShow();
   setInterval(fetchAndShow,30000);
 }
