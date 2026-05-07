@@ -236,6 +236,15 @@ td.pos{color:var(--green)}td.neg{color:var(--red)}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
 .tag{display:inline-flex;align-items:center;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace}
+
+/* ── ZOOM OVERLAY ── */
+.zoom-overlay{position:fixed;inset:0;background:#0f0f13;z-index:9999;display:none}
+.zoom-overlay.open{display:block}
+.zoom-close{position:fixed;top:max(14px,env(safe-area-inset-top));right:max(14px,env(safe-area-inset-right));z-index:10001;background:rgba(34,34,46,.92);border:1px solid var(--border);color:var(--text);width:42px;height:42px;border-radius:21px;cursor:pointer;font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px)}
+.zoom-rotate{position:fixed;top:50%;left:50%;width:94vw;height:80vh;transform:translate(-50%,-50%);z-index:10000}
+@media (orientation:portrait){
+  .zoom-rotate{width:92vh;height:80vw;transform:translate(-50%,-50%) rotate(90deg)}
+}
 </style>
 </head>
 <body>
@@ -332,7 +341,11 @@ td.pos{color:var(--green)}td.neg{color:var(--red)}
         <div class="tbl-wrap"><table id="dataTable"><thead><tr><th>日期</th></tr></thead><tbody></tbody></table></div>
       </div>
       <div class="card" style="margin-top:0">
-        <div class="card-title">累计积分折线图 <span style="color:var(--muted);font-size:10px;font-weight:400;text-transform:none">（点击选手 chip 切换显示）</span></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:8px">
+          <div class="card-title" style="margin-bottom:0;flex:1">累计积分折线图</div>
+          <button class="btn btn-ghost btn-sm" onclick="openZoom()" style="padding:6px 12px;font-size:12px">🔍 横屏放大</button>
+        </div>
+        <div style="font-size:10px;color:var(--muted);margin-bottom:10px">点击下方选手 chip 可切换显示</div>
         <div class="player-chips" id="chartChips" style="margin-bottom:12px"></div>
         <div style="height:420px"><canvas id="lineChart"></canvas></div>
       </div>
@@ -428,6 +441,12 @@ td.pos{color:var(--green)}td.neg{color:var(--red)}
       <button class="btn btn-primary" style="flex:2" onclick="copyViewerLink()">📋 复制链接</button>
     </div>
   </div>
+</div>
+
+<!-- ── ZOOM OVERLAY ── -->
+<div class="zoom-overlay" id="zoomOverlay">
+  <button class="zoom-close" onclick="closeZoom()">✕</button>
+  <div class="zoom-rotate"><canvas id="zoomChart"></canvas></div>
 </div>
 
 <div id="toast"></div>
@@ -707,6 +726,69 @@ function togChartHidden(name){
   pushCloud();
   renderChartChips();renderChart();renderTable();
 }
+function makeLeaderLinesPlugin(){
+  return {id:'leaderLines',afterDatasetsDraw(chart){
+    const{ctx,chartArea}=chart;
+    const labels=[];
+    chart.data.datasets.forEach((ds,i)=>{
+      const meta=chart.getDatasetMeta(i);
+      if(meta.hidden)return;
+      const lp=meta.data[meta.data.length-1];
+      if(!lp)return;
+      labels.push({x:lp.x,actualY:lp.y,labelY:lp.y,color:ds.borderColor,label:ds.label,value:ds.data[ds.data.length-1]});
+    });
+    if(!labels.length)return;
+    labels.sort((a,b)=>a.actualY-b.actualY);
+    const lh=22,top=chartArea.top+8,bot=chartArea.bottom-8;
+    if(labels[0].labelY<top)labels[0].labelY=top;
+    for(let i=1;i<labels.length;i++){
+      if(labels[i].labelY<labels[i-1].labelY+lh)labels[i].labelY=labels[i-1].labelY+lh;
+    }
+    for(let i=labels.length-1;i>=0;i--){
+      if(labels[i].labelY>bot)labels[i].labelY=bot;
+      if(i>0&&labels[i-1].labelY>labels[i].labelY-lh)labels[i-1].labelY=labels[i].labelY-lh;
+    }
+    ctx.save();
+    ctx.font='600 13px "Noto Sans SC",sans-serif';
+    const STUB1=8,GAP=55,STUB2=8;
+    labels.forEach(({x,actualY,labelY,color,label,value})=>{
+      ctx.strokeStyle=color;ctx.lineWidth=1.2;
+      ctx.beginPath();
+      ctx.moveTo(x+4,actualY);
+      ctx.lineTo(chartArea.right+STUB1,actualY);
+      ctx.lineTo(chartArea.right+STUB1+GAP,labelY);
+      ctx.lineTo(chartArea.right+STUB1+GAP+STUB2,labelY);
+      ctx.stroke();
+      ctx.fillStyle=color;ctx.textAlign='left';ctx.textBaseline='middle';
+      ctx.fillText(`${label} ${value>0?'+':''}${value}`,chartArea.right+STUB1+GAP+STUB2+4,labelY);
+    });
+    ctx.restore();
+  }};
+}
+let zoomChartInst=null;
+function openZoom(){
+  const all=roster(),hid=new Set(db.hidden||[]),ms=sortedMatches();
+  const visible=all.filter(n=>!hid.has(n));
+  if(!ms.length||!visible.length){showToast('⚠️ 暂无数据');return;}
+  document.getElementById('zoomOverlay').classList.add('open');
+  document.body.style.overflow='hidden';
+  setTimeout(()=>{
+    const datasets=visible.map(n=>{
+      const i=all.indexOf(n);
+      let c=0;const data=ms.map(m=>{c+=parseInt(m.scores[n]||0);return c;});
+      const col=colorFor(i,all.length);
+      const radii=data.map((_,j)=>j===data.length-1?4:0);
+      return{label:n,data,borderColor:col,backgroundColor:col+'33',borderWidth:1.8,pointRadius:radii,pointHoverRadius:6,pointBackgroundColor:col,tension:.3,fill:false};
+    });
+    if(zoomChartInst)zoomChartInst.destroy();
+    zoomChartInst=new Chart(document.getElementById('zoomChart'),{type:'line',data:{labels:ms.map(m=>m.date.slice(5)),datasets},options:{responsive:true,maintainAspectRatio:false,animation:{duration:300},layout:{padding:{right:210,left:8,top:14,bottom:8}},interaction:{mode:'nearest',intersect:false},plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6868a0',font:{size:12}},grid:{color:'#2e2e3e'}},y:{ticks:{color:'#6868a0',font:{size:12}},grid:{color:'#2e2e3e'}}}},plugins:[makeLeaderLinesPlugin()]});
+  },50);
+}
+function closeZoom(){
+  document.getElementById('zoomOverlay').classList.remove('open');
+  document.body.style.overflow='';
+  if(zoomChartInst){zoomChartInst.destroy();zoomChartInst=null;}
+}
 function renderChart(){
   const all=roster(),hid=new Set(db.hidden||[]),ms=sortedMatches(),canvas=document.getElementById('lineChart');
   if(chartInst){chartInst.destroy();chartInst=null;}
@@ -875,6 +957,12 @@ async function launchViewer(binId,apiKey){
     .chip-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
     .vchip{display:inline-flex;align-items:center;gap:6px;background:#22222e;border:1px solid #2e2e3e;border-radius:20px;padding:5px 11px 5px 9px;font-size:12px;color:#eeeef5;-webkit-user-select:none;user-select:none}
     .vchip-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+    .zbtn{background:#22222e;border:1px solid #2e2e3e;color:#6ab4ff;font-family:'Noto Sans SC',sans-serif;font-size:12px;padding:6px 12px;border-radius:8px;cursor:pointer}
+    .zoom-overlay{position:fixed;inset:0;background:#0f0f13;z-index:9999;display:none}
+    .zoom-overlay.open{display:block}
+    .zoom-close{position:fixed;top:max(14px,env(safe-area-inset-top));right:max(14px,env(safe-area-inset-right));z-index:10001;background:rgba(34,34,46,.92);border:1px solid #2e2e3e;color:#eeeef5;width:42px;height:42px;border-radius:21px;cursor:pointer;font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center}
+    .zoom-rotate{position:fixed;top:50%;left:50%;width:94vw;height:80vh;transform:translate(-50%,-50%);z-index:10000}
+    @media (orientation:portrait){.zoom-rotate{width:92vh;height:80vw;transform:translate(-50%,-50%) rotate(90deg)}}
     .tbl-wrap{overflow-x:auto;border-radius:10px;border:1px solid #2e2e3e}
     table{width:100%;border-collapse:collapse;font-size:12px;font-family:'JetBrains Mono',monospace;white-space:nowrap}
     th{background:#22222e;color:#6868a0;font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:9px 10px;text-align:left;border-bottom:1px solid #2e2e3e}
@@ -893,7 +981,10 @@ async function launchViewer(binId,apiKey){
     <h2>当前总积分排名</h2>
     <div class="list" id="list"><div class="loading"><div class="spin"></div><br><br>加载中…</div></div>
     <div class="card" id="chartCard" style="display:none">
-      <h2>累计积分趋势</h2>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px">
+        <h2 style="margin-bottom:0">累计积分趋势</h2>
+        <button class="zbtn" id="zoomBtn">🔍 横屏放大</button>
+      </div>
       <div class="chip-row" id="chipRow"></div>
       <div class="chart-box"><canvas id="trendChart"></canvas></div>
     </div>
@@ -902,6 +993,10 @@ async function launchViewer(binId,apiKey){
       <div class="tbl-wrap"><table id="trendTable"></table></div>
     </div>
     <div class="footer" id="foot"></div>
+  </div>
+  <div class="zoom-overlay" id="zoomOverlay">
+    <button class="zoom-close" id="zoomCloseBtn">✕</button>
+    <div class="zoom-rotate"><canvas id="zoomChart"></canvas></div>
   </div>`;
 
   async function fetchAndShow(){
@@ -934,6 +1029,7 @@ async function launchViewer(binId,apiKey){
   function renderTrend(allPlayers,ms,hid){
     const chartCard=document.getElementById('chartCard'),tableCard=document.getElementById('tableCard');
     const visible=allPlayers.filter(n=>!hid.has(n));
+    lastSnapshot={visible,ms,allPlayers};
     if(!ms.length||!visible.length){chartCard.style.display='none';tableCard.style.display='none';return;}
     chartCard.style.display='block';tableCard.style.display='block';
 
@@ -964,6 +1060,64 @@ async function launchViewer(binId,apiKey){
   }
   window.fetchAndShow=fetchAndShow;
   document.body.style.cssText='height:auto;overflow:visible;overflow-y:auto;overscroll-behavior:auto;background:#0f0f13;color:#eeeef5;font-family:Noto Sans SC,sans-serif;min-height:100vh;margin:0';
+
+  let zoomInst=null,lastSnapshot=null;
+  function leaderPlugin(){
+    return{id:'leaderLines',afterDatasetsDraw(chart){
+      const{ctx,chartArea}=chart;const labels=[];
+      chart.data.datasets.forEach((ds,i)=>{
+        const meta=chart.getDatasetMeta(i);if(meta.hidden)return;
+        const lp=meta.data[meta.data.length-1];if(!lp)return;
+        labels.push({x:lp.x,actualY:lp.y,labelY:lp.y,color:ds.borderColor,label:ds.label,value:ds.data[ds.data.length-1]});
+      });
+      if(!labels.length)return;
+      labels.sort((a,b)=>a.actualY-b.actualY);
+      const lh=22,top=chartArea.top+8,bot=chartArea.bottom-8;
+      if(labels[0].labelY<top)labels[0].labelY=top;
+      for(let i=1;i<labels.length;i++)if(labels[i].labelY<labels[i-1].labelY+lh)labels[i].labelY=labels[i-1].labelY+lh;
+      for(let i=labels.length-1;i>=0;i--){if(labels[i].labelY>bot)labels[i].labelY=bot;if(i>0&&labels[i-1].labelY>labels[i].labelY-lh)labels[i-1].labelY=labels[i].labelY-lh;}
+      ctx.save();ctx.font='600 13px "Noto Sans SC",sans-serif';
+      const STUB1=8,GAP=55,STUB2=8;
+      labels.forEach(({x,actualY,labelY,color,label,value})=>{
+        ctx.strokeStyle=color;ctx.lineWidth=1.2;
+        ctx.beginPath();
+        ctx.moveTo(x+4,actualY);
+        ctx.lineTo(chartArea.right+STUB1,actualY);
+        ctx.lineTo(chartArea.right+STUB1+GAP,labelY);
+        ctx.lineTo(chartArea.right+STUB1+GAP+STUB2,labelY);
+        ctx.stroke();
+        ctx.fillStyle=color;ctx.textAlign='left';ctx.textBaseline='middle';
+        ctx.fillText(`${label} ${value>0?'+':''}${value}`,chartArea.right+STUB1+GAP+STUB2+4,labelY);
+      });
+      ctx.restore();
+    }};
+  }
+  function openZoomViewer(){
+    if(!lastSnapshot)return;
+    const{visible,ms,allPlayers}=lastSnapshot;
+    if(!ms.length||!visible.length)return;
+    document.getElementById('zoomOverlay').classList.add('open');
+    document.body.style.overflow='hidden';
+    setTimeout(()=>{
+      const datasets=visible.map(n=>{
+        const i=allPlayers.indexOf(n);
+        let c=0;const data=ms.map(m=>{c+=parseInt(m.scores[n]||0);return c;});
+        const col=vColor(i,allPlayers.length);
+        const radii=data.map((_,j)=>j===data.length-1?4:0);
+        return{label:n,data,borderColor:col,backgroundColor:col+'33',borderWidth:1.8,pointRadius:radii,pointHoverRadius:6,pointBackgroundColor:col,tension:.3,fill:false};
+      });
+      if(zoomInst)zoomInst.destroy();
+      zoomInst=new Chart(document.getElementById('zoomChart'),{type:'line',data:{labels:ms.map(m=>m.date.slice(5)),datasets},options:{responsive:true,maintainAspectRatio:false,animation:{duration:300},layout:{padding:{right:210,left:8,top:14,bottom:8}},interaction:{mode:'nearest',intersect:false},plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6868a0',font:{size:12}},grid:{color:'#2e2e3e'}},y:{ticks:{color:'#6868a0',font:{size:12}},grid:{color:'#2e2e3e'}}}},plugins:[leaderPlugin()]});
+    },50);
+  }
+  function closeZoomViewer(){
+    document.getElementById('zoomOverlay').classList.remove('open');
+    document.body.style.overflow='';
+    if(zoomInst){zoomInst.destroy();zoomInst=null;}
+  }
+  document.getElementById('zoomBtn').onclick=openZoomViewer;
+  document.getElementById('zoomCloseBtn').onclick=closeZoomViewer;
+
   fetchAndShow();
   setInterval(fetchAndShow,30000);
 }
