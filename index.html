@@ -437,7 +437,6 @@ let tableMode = 'cumulative';
 let editingIdx = -1;
 let selectedPrize = new Set();
 let chartInst = null;
-let curPage='rank';
 
 function loadCfg(){ try{const s=localStorage.getItem(LS_CFG);if(s)cfg=JSON.parse(s);}catch{} }
 function saveCfg(){ localStorage.setItem(LS_CFG,JSON.stringify(cfg)); }
@@ -531,6 +530,7 @@ function finalTotals(){
 }
 
 // ═══════════════════════════ NAV ═══════════════════════════
+let curPage='rank';
 function navTo(id){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
@@ -812,14 +812,10 @@ function checkViewer(){
 }
 
 async function launchViewer(binId,apiKey){
-  document.documentElement.style.cssText='height:auto;overflow:visible;overflow-y:auto';
-  let viewerChart=null;
-  const VCOLORS=['#f0c060','#6ab4ff','#a78bfa','#5de8b0','#ff6b6b','#fbbf24','#34d399','#60a5fa','#f472b6','#a3e635'];
   document.body.innerHTML=`
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;600;700;900&family=JetBrains+Mono:wght@600&display=swap');
     *{box-sizing:border-box;margin:0;padding:0}
-    html,body{height:auto !important;overflow:visible !important;overflow-y:auto !important;overscroll-behavior:auto !important}
     body{background:#0f0f13;color:#eeeef5;font-family:'Noto Sans SC',sans-serif;min-height:100vh}
     header{background:#18181f;border-bottom:1px solid #2e2e3e;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}
     .logo{font-size:18px;font-weight:900;background:linear-gradient(135deg,#f0c060,#6ab4ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
@@ -840,15 +836,6 @@ async function launchViewer(binId,apiKey){
     .spin{display:inline-block;width:24px;height:24px;border:2px solid #2e2e3e;border-top-color:#f0c060;border-radius:50%;animation:sp .8s linear infinite}
     @keyframes sp{to{transform:rotate(360deg)}}
     button.rf-btn{background:#18181f;border:1px solid #2e2e3e;color:#6ab4ff;font-family:'Noto Sans SC',sans-serif;font-size:12px;padding:6px 14px;border-radius:8px;cursor:pointer}
-    .card{background:#18181f;border:1px solid #2e2e3e;border-radius:16px;padding:16px;margin-top:24px}
-    .card h2{margin-bottom:12px}
-    .chart-box{height:300px}
-    .tbl-wrap{overflow-x:auto;border-radius:10px;border:1px solid #2e2e3e}
-    table{width:100%;border-collapse:collapse;font-size:12px;font-family:'JetBrains Mono',monospace;white-space:nowrap}
-    th{background:#22222e;color:#6868a0;font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:9px 10px;text-align:left;border-bottom:1px solid #2e2e3e}
-    td{padding:9px 10px;border-bottom:1px solid #3a3a52}
-    tr:last-child td{border-bottom:none}
-    td.pos{color:#5de8b0}td.neg{color:#ff6b6b}
   </style>
   <header>
     <div class="logo">🏆 积分排行榜</div>
@@ -860,14 +847,6 @@ async function launchViewer(binId,apiKey){
   <div class="wrap">
     <h2>当前总积分排名</h2>
     <div class="list" id="list"><div class="loading"><div class="spin"></div><br><br>加载中…</div></div>
-    <div class="card" id="chartCard" style="display:none">
-      <h2>累计积分趋势</h2>
-      <div class="chart-box"><canvas id="trendChart"></canvas></div>
-    </div>
-    <div class="card" id="tableCard" style="display:none">
-      <h2>每场后累计积分</h2>
-      <div class="tbl-wrap"><table id="trendTable"></table></div>
-    </div>
     <div class="footer" id="foot"></div>
   </div>`;
 
@@ -893,30 +872,8 @@ async function launchViewer(binId,apiKey){
       const t=new Date().toLocaleTimeString('zh',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
       document.getElementById('rfInfo').textContent='更新 '+t;
       document.getElementById('foot').textContent=`${sorted.length}名选手 · ${ms.length}场比赛 · 30秒自动刷新`;
-      renderTrend(players,ms);
     }catch{document.getElementById('list').innerHTML='<div class="loading" style="color:#ff6b6b">网络错误</div>';document.getElementById('rfInfo').textContent='加载失败';}
   }
-
-  function renderTrend(players,ms){
-    const chartCard=document.getElementById('chartCard'),tableCard=document.getElementById('tableCard');
-    if(!ms.length||!players.length){chartCard.style.display='none';tableCard.style.display='none';return;}
-    chartCard.style.display='block';tableCard.style.display='block';
-    const datasets=players.map((n,i)=>{
-      let c=0;const data=ms.map(m=>{c+=parseInt(m.scores[n]||0);return c;});
-      return{label:n,data,borderColor:VCOLORS[i%VCOLORS.length],backgroundColor:VCOLORS[i%VCOLORS.length]+'22',borderWidth:2,pointRadius:3,tension:.3,fill:false};
-    });
-    if(viewerChart)viewerChart.destroy();
-    viewerChart=new Chart(document.getElementById('trendChart'),{type:'line',data:{labels:ms.map(m=>m.date.slice(5)),datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#eeeef5',font:{family:'Noto Sans SC',size:11},boxWidth:12}}},scales:{x:{ticks:{color:'#6868a0',font:{size:10}},grid:{color:'#2e2e3e'}},y:{ticks:{color:'#6868a0',font:{size:10}},grid:{color:'#2e2e3e'}}}}});
-    const tot={};players.forEach(n=>tot[n]=0);
-    const rows=ms.map(m=>{
-      players.forEach(n=>{tot[n]+=parseInt(m.scores[n]||0);});
-      const cells=players.map(n=>{const v=tot[n];return`<td class="${v>0?'pos':v<0?'neg':''}">${v>0?'+':''}${v}</td>`;}).join('');
-      return`<tr><td>${m.date}</td>${cells}</tr>`;
-    }).join('');
-    document.getElementById('trendTable').innerHTML=`<thead><tr><th>日期</th>${players.map(n=>`<th>${n}</th>`).join('')}</tr></thead><tbody>${rows}</tbody>`;
-  }
-  window.fetchAndShow=fetchAndShow;
-  document.body.style.cssText='height:auto;overflow:visible;overflow-y:auto;overscroll-behavior:auto;background:#0f0f13;color:#eeeef5;font-family:Noto Sans SC,sans-serif;min-height:100vh;margin:0';
   fetchAndShow();
   setInterval(fetchAndShow,30000);
 }
