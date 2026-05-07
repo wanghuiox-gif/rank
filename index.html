@@ -341,12 +341,12 @@ td.pos{color:var(--green)}td.neg{color:var(--red)}
         <div class="tbl-wrap"><table id="dataTable"><thead><tr><th>日期</th></tr></thead><tbody></tbody></table></div>
       </div>
       <div class="card" style="margin-top:0">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:8px">
-          <div class="card-title" style="margin-bottom:0;flex:1">累计积分折线图</div>
-          <button class="btn btn-ghost btn-sm" onclick="openZoom()" style="padding:6px 12px;font-size:12px">🔍 横屏放大</button>
-        </div>
+        <div class="card-title">累计积分折线图</div>
         <div style="font-size:10px;color:var(--muted);margin-bottom:10px">点击下方选手 chip 可切换显示</div>
-        <div class="player-chips" id="chartChips" style="margin-bottom:12px"></div>
+        <div class="player-chips" id="chartChips" style="margin-bottom:10px"></div>
+        <div style="text-align:center;margin-bottom:12px">
+          <button class="btn btn-ghost btn-sm" onclick="openZoom()" style="padding:8px 18px;font-size:13px">🔍 横屏放大查看</button>
+        </div>
         <div style="height:420px"><canvas id="lineChart"></canvas></div>
       </div>
       <div class="card">
@@ -729,6 +729,7 @@ function togChartHidden(name){
 function makeLeaderLinesPlugin(){
   return {id:'leaderLines',afterDatasetsDraw(chart){
     const{ctx,chartArea}=chart;
+    const canvasW=chart.width;
     const labels=[];
     chart.data.datasets.forEach((ds,i)=>{
       const meta=chart.getDatasetMeta(i);
@@ -738,29 +739,37 @@ function makeLeaderLinesPlugin(){
       labels.push({x:lp.x,actualY:lp.y,labelY:lp.y,color:ds.borderColor,label:ds.label,value:ds.data[ds.data.length-1]});
     });
     if(!labels.length)return;
-    labels.sort((a,b)=>a.actualY-b.actualY);
-    const lh=22,top=chartArea.top+8,bot=chartArea.bottom-8;
-    if(labels[0].labelY<top)labels[0].labelY=top;
-    for(let i=1;i<labels.length;i++){
-      if(labels[i].labelY<labels[i-1].labelY+lh)labels[i].labelY=labels[i-1].labelY+lh;
-    }
-    for(let i=labels.length-1;i>=0;i--){
-      if(labels[i].labelY>bot)labels[i].labelY=bot;
-      if(i>0&&labels[i-1].labelY>labels[i].labelY-lh)labels[i-1].labelY=labels[i].labelY-lh;
-    }
     ctx.save();
     ctx.font='600 13px "Noto Sans SC",sans-serif';
-    const STUB1=8,GAP=55,STUB2=8;
-    labels.forEach(({x,actualY,labelY,color,label,value})=>{
+    // measure each label
+    labels.forEach(l=>{l.text=`${l.label} ${l.value>0?'+':''}${l.value}`;l.tw=ctx.measureText(l.text).width;});
+    const maxTw=Math.max(...labels.map(l=>l.tw));
+    const RIGHT_MARGIN=6;          // 距离画布右边
+    const STUB1=8;                 // 圆点之后的横向短线
+    const STUB2=6;                 // 标签之前的横向短线
+    const labelStartX=canvasW-RIGHT_MARGIN-maxTw;  // 文字起点统一对齐
+    const lineEndX=labelStartX-STUB2-2;             // 引导线斜段终点
+
+    labels.sort((a,b)=>a.actualY-b.actualY);
+    const top=10,bot=chart.height-10;
+    const availH=bot-top;
+    const lh=labels.length>1?Math.min(22,availH/(labels.length-1)):22;
+    labels[0].labelY=Math.max(top,labels[0].labelY);
+    for(let i=1;i<labels.length;i++)labels[i].labelY=Math.max(labels[i].labelY,labels[i-1].labelY+lh);
+    labels[labels.length-1].labelY=Math.min(bot,labels[labels.length-1].labelY);
+    for(let i=labels.length-2;i>=0;i--)labels[i].labelY=Math.min(labels[i].labelY,labels[i+1].labelY-lh);
+    labels.forEach(l=>l.labelY=Math.max(top,Math.min(bot,l.labelY)));
+
+    labels.forEach(({x,actualY,labelY,color,text})=>{
       ctx.strokeStyle=color;ctx.lineWidth=1.2;
       ctx.beginPath();
       ctx.moveTo(x+4,actualY);
       ctx.lineTo(chartArea.right+STUB1,actualY);
-      ctx.lineTo(chartArea.right+STUB1+GAP,labelY);
-      ctx.lineTo(chartArea.right+STUB1+GAP+STUB2,labelY);
+      ctx.lineTo(lineEndX,labelY);
+      ctx.lineTo(labelStartX-2,labelY);
       ctx.stroke();
       ctx.fillStyle=color;ctx.textAlign='left';ctx.textBaseline='middle';
-      ctx.fillText(`${label} ${value>0?'+':''}${value}`,chartArea.right+STUB1+GAP+STUB2+4,labelY);
+      ctx.fillText(text,labelStartX,labelY);
     });
     ctx.restore();
   }};
@@ -981,11 +990,11 @@ async function launchViewer(binId,apiKey){
     <h2>当前总积分排名</h2>
     <div class="list" id="list"><div class="loading"><div class="spin"></div><br><br>加载中…</div></div>
     <div class="card" id="chartCard" style="display:none">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px">
-        <h2 style="margin-bottom:0">累计积分趋势</h2>
-        <button class="zbtn" id="zoomBtn">🔍 横屏放大</button>
-      </div>
+      <h2>累计积分趋势</h2>
       <div class="chip-row" id="chipRow"></div>
+      <div style="text-align:center;margin-bottom:12px">
+        <button class="zbtn" id="zoomBtn" style="padding:8px 18px;font-size:13px">🔍 横屏放大查看</button>
+      </div>
       <div class="chart-box"><canvas id="trendChart"></canvas></div>
     </div>
     <div class="card" id="tableCard" style="display:none">
@@ -1064,30 +1073,38 @@ async function launchViewer(binId,apiKey){
   let zoomInst=null,lastSnapshot=null;
   function leaderPlugin(){
     return{id:'leaderLines',afterDatasetsDraw(chart){
-      const{ctx,chartArea}=chart;const labels=[];
+      const{ctx,chartArea}=chart;const canvasW=chart.width;const labels=[];
       chart.data.datasets.forEach((ds,i)=>{
         const meta=chart.getDatasetMeta(i);if(meta.hidden)return;
         const lp=meta.data[meta.data.length-1];if(!lp)return;
         labels.push({x:lp.x,actualY:lp.y,labelY:lp.y,color:ds.borderColor,label:ds.label,value:ds.data[ds.data.length-1]});
       });
       if(!labels.length)return;
-      labels.sort((a,b)=>a.actualY-b.actualY);
-      const lh=22,top=chartArea.top+8,bot=chartArea.bottom-8;
-      if(labels[0].labelY<top)labels[0].labelY=top;
-      for(let i=1;i<labels.length;i++)if(labels[i].labelY<labels[i-1].labelY+lh)labels[i].labelY=labels[i-1].labelY+lh;
-      for(let i=labels.length-1;i>=0;i--){if(labels[i].labelY>bot)labels[i].labelY=bot;if(i>0&&labels[i-1].labelY>labels[i].labelY-lh)labels[i-1].labelY=labels[i].labelY-lh;}
       ctx.save();ctx.font='600 13px "Noto Sans SC",sans-serif';
-      const STUB1=8,GAP=55,STUB2=8;
-      labels.forEach(({x,actualY,labelY,color,label,value})=>{
+      labels.forEach(l=>{l.text=`${l.label} ${l.value>0?'+':''}${l.value}`;l.tw=ctx.measureText(l.text).width;});
+      const maxTw=Math.max(...labels.map(l=>l.tw));
+      const RIGHT_MARGIN=6,STUB1=8,STUB2=6;
+      const labelStartX=canvasW-RIGHT_MARGIN-maxTw;
+      const lineEndX=labelStartX-STUB2-2;
+      labels.sort((a,b)=>a.actualY-b.actualY);
+      const top=10,bot=chart.height-10;
+      const availH=bot-top;
+      const lh=labels.length>1?Math.min(22,availH/(labels.length-1)):22;
+      labels[0].labelY=Math.max(top,labels[0].labelY);
+      for(let i=1;i<labels.length;i++)labels[i].labelY=Math.max(labels[i].labelY,labels[i-1].labelY+lh);
+      labels[labels.length-1].labelY=Math.min(bot,labels[labels.length-1].labelY);
+      for(let i=labels.length-2;i>=0;i--)labels[i].labelY=Math.min(labels[i].labelY,labels[i+1].labelY-lh);
+      labels.forEach(l=>l.labelY=Math.max(top,Math.min(bot,l.labelY)));
+      labels.forEach(({x,actualY,labelY,color,text})=>{
         ctx.strokeStyle=color;ctx.lineWidth=1.2;
         ctx.beginPath();
         ctx.moveTo(x+4,actualY);
         ctx.lineTo(chartArea.right+STUB1,actualY);
-        ctx.lineTo(chartArea.right+STUB1+GAP,labelY);
-        ctx.lineTo(chartArea.right+STUB1+GAP+STUB2,labelY);
+        ctx.lineTo(lineEndX,labelY);
+        ctx.lineTo(labelStartX-2,labelY);
         ctx.stroke();
         ctx.fillStyle=color;ctx.textAlign='left';ctx.textBaseline='middle';
-        ctx.fillText(`${label} ${value>0?'+':''}${value}`,chartArea.right+STUB1+GAP+STUB2+4,labelY);
+        ctx.fillText(text,labelStartX,labelY);
       });
       ctx.restore();
     }};
