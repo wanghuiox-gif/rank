@@ -68,6 +68,20 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans SC',sans-seri
 }
 .app-header .logo{font-size:16px;font-weight:800;letter-spacing:1px;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;flex:1}
 .sync-pill{display:flex;align-items:center;gap:5px;font-size:11px;font-family:'JetBrains Mono',monospace;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:4px 10px;color:var(--muted)}
+.season-chip{background:var(--surface2);border:1px solid var(--border);color:var(--accent);font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;padding:4px 10px;border-radius:14px;cursor:pointer;display:flex;align-items:center;gap:4px;-webkit-user-select:none;user-select:none}
+.season-chip:active{background:var(--surface)}
+.season-chip .arr{font-size:9px;opacity:.7}
+.season-row{display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:8px}
+.season-row.current{border-color:var(--accent);background:#1e1a08}
+.season-name{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:var(--text)}
+.season-meta{font-size:11px;color:var(--muted);margin-top:2px}
+.records-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.rec-item{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:12px 10px}
+.rec-icon{font-size:20px;margin-bottom:4px}
+.rec-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;font-weight:600}
+.rec-value{font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:var(--accent);margin-bottom:2px;line-height:1.3}
+.rec-value.neg{color:var(--red)}
+.rec-meta{font-size:10px;color:var(--muted);line-height:1.3}
 .sync-dot{width:6px;height:6px;border-radius:50%;background:var(--muted);flex-shrink:0}
 .sync-dot.ok{background:var(--green)}.sync-dot.err{background:var(--red)}.sync-dot.syncing{background:var(--accent);animation:blink 1s infinite}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
@@ -160,12 +174,14 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans SC',sans-seri
 .rank-score.neg{color:var(--red)}
 
 /* ── TABLE ── */
-.tbl-wrap{overflow-x:auto;border-radius:12px;border:1px solid var(--border)}
-table{width:100%;border-collapse:collapse;font-size:12px;font-family:'JetBrains Mono',monospace;white-space:nowrap}
+.tbl-wrap{overflow:auto;max-height:60vh;border-radius:12px;border:1px solid var(--border)}
+table{width:100%;border-collapse:separate;border-spacing:0;font-size:12px;font-family:'JetBrains Mono',monospace;white-space:nowrap}
 th{background:var(--surface2);color:var(--muted);font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:9px 10px;text-align:left;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:5}
-td{padding:9px 10px;border-bottom:1px solid var(--dim)}
+td{padding:9px 10px;border-bottom:1px solid var(--dim);background:var(--surface)}
+th:first-child,td:first-child{position:sticky;left:0;z-index:4}
+th:first-child{background:var(--surface2);z-index:6;border-right:1px solid var(--border)}
+td:first-child{background:var(--surface);border-right:1px solid var(--border)}
 tr:last-child td{border-bottom:none}
-tr:hover td{background:var(--surface2)}
 td.pos{color:var(--green)}td.neg{color:var(--red)}
 .tbl-mode-btn{display:flex;align-items:center;gap:6px;margin-bottom:10px}
 
@@ -278,7 +294,8 @@ td.pos{color:var(--green)}td.neg{color:var(--red)}
 <!-- ═══════════ MAIN APP ═══════════ -->
 <div id="mainApp">
   <div class="app-header">
-    <div class="logo">🏆 积分赛程</div>
+    <div class="logo">🏆</div>
+    <button class="season-chip" id="seasonChip" onclick="openSeasonSheet()"><span id="seasonChipText">S5</span><span class="arr">▼</span></button>
     <div class="sync-pill">
       <div class="sync-dot" id="syncDot"></div>
       <span id="syncLabel">未连接</span>
@@ -306,6 +323,7 @@ td.pos{color:var(--green)}td.neg{color:var(--red)}
     <div class="page" id="pg-entry">
       <div class="card">
         <div class="card-title">新增一场比赛</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px">本场将归入 <span id="entrySeasonHint" style="color:var(--accent);font-family:'JetBrains Mono',monospace;font-weight:700">S5</span> · 如需修改请点顶部赛季 chip</div>
         <div class="field">
           <label>比赛日期</label>
           <input type="date" id="entryDate">
@@ -350,6 +368,10 @@ td.pos{color:var(--green)}td.neg{color:var(--red)}
         <div style="height:420px"><canvas id="lineChart"></canvas></div>
       </div>
       <div class="card">
+        <div class="card-title">本赛季记录 <span id="recordsSeasonTag" style="color:var(--accent);font-size:10px;font-weight:400;text-transform:none;font-family:'JetBrains Mono',monospace"></span></div>
+        <div id="recordsList" class="records-grid"></div>
+      </div>
+      <div class="card">
         <div class="card-title">彩头计算 <span style="color:var(--muted);font-size:10px;font-weight:400;text-transform:none">80分 = £1，点选场次</span></div>
         <div id="prizeMatchList"></div>
         <div id="prizeResult" style="margin-top:12px"></div>
@@ -380,6 +402,10 @@ td.pos{color:var(--green)}td.neg{color:var(--red)}
           <input type="text" id="renameNew" placeholder="输入新名字" autocorrect="off">
         </div>
         <button class="btn btn-ghost btn-full" onclick="renamePlayer()">确认改名</button>
+      </div>
+      <div class="card">
+        <div class="card-title">历届赛季记录</div>
+        <div id="historicalList"></div>
       </div>
       <div class="card">
         <div class="card-title">数据备份</div>
@@ -428,6 +454,31 @@ td.pos{color:var(--green)}td.neg{color:var(--red)}
   </div>
 </div>
 
+<!-- ── SEASON SHEET ── -->
+<div class="sheet-overlay" id="seasonSheet">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">📅 赛季管理</div>
+    <div class="field">
+      <label>查看赛季</label>
+      <select id="viewSeasonSelect" onchange="changeViewSeason(this.value)"></select>
+    </div>
+    <div class="field">
+      <label>所有赛季（点击设为当前）</label>
+      <div id="seasonList"></div>
+    </div>
+    <div class="field">
+      <label>新建赛季</label>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="newSeasonInput" placeholder="如 S6" autocomplete="off" autocorrect="off" autocapitalize="off" style="flex:1">
+        <button class="btn btn-primary" onclick="addSeason()" style="width:auto;flex-shrink:0">＋ 新建</button>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px">新建后会自动设为当前赛季，新比赛归到新赛季</div>
+    </div>
+    <button class="btn btn-ghost btn-full" onclick="closeSheet('seasonSheet')">关闭</button>
+  </div>
+</div>
+
 <!-- ── QR SHEET ── -->
 <div class="sheet-overlay" id="qrSheet">
   <div class="sheet" style="text-align:center">
@@ -455,12 +506,13 @@ td.pos{color:var(--green)}td.neg{color:var(--red)}
 // ═══════════════════════════ CONFIG ═══════════════════════════
 const LS_CFG = 'jifen_cfg_v3';
 let cfg = {apiKey:'',binId:'',demo:false};
-let db = {matches:[],players:[],hidden:[]};
+let db = {matches:[],players:[],hidden:[],seasons:['S5'],currentSeason:'S5'};
 let tableMode = 'cumulative';
 let editingIdx = -1;
 let selectedPrize = new Set();
 let chartInst = null;
 let curPage='rank';
+let viewSeason = null;
 
 function loadCfg(){ try{const s=localStorage.getItem(LS_CFG);if(s)cfg=JSON.parse(s);}catch{} }
 function saveCfg(){ localStorage.setItem(LS_CFG,JSON.stringify(cfg)); }
@@ -512,14 +564,14 @@ async function loadCloud(){
       const j=await res.json();
       if(j.metadata?.id){
         cfg.binId=j.metadata.id;saveCfg();
-        db={matches:[],players:[],hidden:[]};
-        syncUI('ok',now());renderAll();
+        db={matches:[],players:[],hidden:[],seasons:['S5'],currentSeason:'S5'};
+        migrateData();syncUI('ok',now());renderAll();
       }else{syncUI('err','创建失败');showToast('❌ 检查 API Key');}
       return;
     }
     const res=await fetch(`https://api.jsonbin.io/v3/b/${cfg.binId}/latest`,{headers:{'X-Master-Key':cfg.apiKey}});
     const j=await res.json();
-    if(j.record){db={matches:j.record.matches||[],players:j.record.players||[],hidden:j.record.hidden||[]};syncUI('ok',now());renderAll();}
+    if(j.record){db={matches:j.record.matches||[],players:j.record.players||[],hidden:j.record.hidden||[],seasons:j.record.seasons||['S5'],currentSeason:j.record.currentSeason||'S5'};migrateData();syncUI('ok',now());renderAll();}
     else syncUI('err','读取失败');
   }catch{syncUI('err','网络错误');}
 }
@@ -530,7 +582,7 @@ async function pushCloud(){
     const res=await fetch(`https://api.jsonbin.io/v3/b/${cfg.binId}`,{
       method:'PUT',
       headers:{'Content-Type':'application/json','X-Master-Key':cfg.apiKey},
-      body:JSON.stringify({matches:db.matches,players:db.players,hidden:db.hidden||[]})
+      body:JSON.stringify({matches:db.matches,players:db.players,hidden:db.hidden||[],seasons:db.seasons||['S5'],currentSeason:db.currentSeason||'S5'})
     });
     const j=await res.json();
     if(j.record)syncUI('ok',now());
@@ -541,16 +593,75 @@ function forcSync(){loadCloud();}
 function now(){return new Date().toLocaleTimeString('zh',{hour:'2-digit',minute:'2-digit'});}
 
 // ═══════════════════════════ DATA ═══════════════════════════
+function migrateData(){
+  if(!Array.isArray(db.seasons)||!db.seasons.length)db.seasons=['S5'];
+  if(!db.currentSeason)db.currentSeason=db.seasons[db.seasons.length-1];
+  (db.matches||[]).forEach(m=>{if(!m.season)m.season='S5';});
+  if(!db.seasons.includes('S5'))db.seasons.unshift('S5');
+  if(!db.seasons.includes(db.currentSeason))db.seasons.push(db.currentSeason);
+  if(!Array.isArray(db.hidden))db.hidden=[];
+  if(!Array.isArray(db.players))db.players=[];
+}
+function getViewSeason(){return viewSeason||db.currentSeason||'S5';}
 function roster(){
   const s=new Set(db.players);
   db.matches.forEach(m=>Object.keys(m.scores||{}).forEach(n=>s.add(n)));
   return[...s].sort();
 }
-function sortedMatches(){return[...db.matches].sort((a,b)=>a.date.localeCompare(b.date));}
+function seasonMatches(s){const sea=s||getViewSeason();return db.matches.filter(m=>(m.season||'S5')===sea);}
+function sortedMatches(s){return[...seasonMatches(s)].sort((a,b)=>a.date.localeCompare(b.date));}
+function seasonRoster(s){
+  const ms=seasonMatches(s),set=new Set();
+  ms.forEach(m=>Object.keys(m.scores||{}).forEach(n=>set.add(n)));
+  return[...set].sort();
+}
+function attendance(p,ms){return ms.filter(m=>parseInt((m.scores||{})[p]||0)!==0).length;}
 function finalTotals(){
-  const p=roster(),t={};p.forEach(n=>t[n]=0);
+  const hid=new Set(db.hidden||[]);
+  const p=seasonRoster().filter(n=>!hid.has(n)),t={};
+  p.forEach(n=>t[n]=0);
   sortedMatches().forEach(m=>p.forEach(n=>{t[n]+=parseInt(m.scores[n]||0);}));
   return Object.entries(t).sort((a,b)=>b[1]-a[1]);
+}
+
+// ═══════════════════════════ SEASONS ═══════════════════════════
+function refreshSeasonChip(){
+  const cur=getViewSeason(),el=document.getElementById('seasonChipText');
+  if(el)el.textContent=cur===db.currentSeason?cur:`${cur} (历)`;
+  const hint=document.getElementById('entrySeasonHint');
+  if(hint)hint.textContent=db.currentSeason||'S5';
+}
+function openSeasonSheet(){
+  renderSeasonSheet();openSheet('seasonSheet');
+}
+function renderSeasonSheet(){
+  const sel=document.getElementById('viewSeasonSelect'),list=document.getElementById('seasonList');
+  if(!sel||!list)return;
+  const cur=getViewSeason();
+  sel.innerHTML=db.seasons.map(s=>`<option value="${s}" ${s===cur?'selected':''}>${s}${s===db.currentSeason?' · 当前':''}</option>`).join('');
+  list.innerHTML=db.seasons.map(s=>{
+    const cnt=db.matches.filter(m=>(m.season||'S5')===s).length;
+    const isCur=s===db.currentSeason;
+    return`<div class="season-row ${isCur?'current':''}">
+      <div><div class="season-name">${s}${isCur?' ✓':''}</div><div class="season-meta">${cnt} 场比赛</div></div>
+      ${isCur?'<span class="tag" style="color:var(--accent);border-color:var(--accent)">当前</span>':`<button class="btn btn-ghost btn-sm" onclick="setCurrentSeason('${s}')">设为当前</button>`}
+    </div>`;
+  }).join('');
+}
+function changeViewSeason(s){viewSeason=s===db.currentSeason?null:s;refreshSeasonChip();renderAll();}
+function setCurrentSeason(s){
+  if(!confirm(`将「${s}」设为当前赛季？\n之后录入的新比赛会归到此赛季。`))return;
+  db.currentSeason=s;viewSeason=null;
+  pushCloud();renderSeasonSheet();refreshSeasonChip();renderAll();
+  showToast(`✅ 当前赛季 → ${s}`);
+}
+function addSeason(){
+  const el=document.getElementById('newSeasonInput'),name=el.value.trim();
+  if(!name){showToast('⚠️ 请输入赛季名');return;}
+  if(db.seasons.includes(name)){showToast('⚠️ 已存在');return;}
+  db.seasons.push(name);db.currentSeason=name;viewSeason=null;
+  pushCloud();el.value='';renderSeasonSheet();refreshSeasonChip();renderAll();
+  showToast(`✅ 新赛季 ${name} 已创建并设为当前`);
 }
 
 // ═══════════════════════════ NAV ═══════════════════════════
@@ -561,16 +672,17 @@ function navTo(id){
   document.getElementById('nav-'+id).classList.add('active');
   curPage=id;
   if(id==='history')renderHistory();
-  if(id==='chart'){renderTable();renderChartChips();renderChart();renderPrize();}
-  if(id==='players')renderPlayers();
+  if(id==='chart'){renderTable();renderChartChips();renderChart();renderPrize();renderRecords();}
+  if(id==='players'){renderPlayers();renderHistorical();}
 }
 
 function renderAll(){
+  refreshSeasonChip();
   renderRank();
   renderScoreList();
   if(curPage==='history')renderHistory();
-  if(curPage==='chart'){renderTable();renderChartChips();renderChart();renderPrize();}
-  if(curPage==='players')renderPlayers();
+  if(curPage==='chart'){renderTable();renderChartChips();renderChart();renderPrize();renderRecords();}
+  if(curPage==='players'){renderPlayers();renderHistorical();}
 }
 
 // ═══════════════════════════ RANK ═══════════════════════════
@@ -635,10 +747,11 @@ function saveMatch(){
   if(!date){showToast('⚠️ 请选择日期');return;}
   if(!roster().length){showToast('⚠️ 请先添加选手');return;}
   const scores=collectScores(document.getElementById('scoreList'));
-  db.matches.push({date,scores});
+  const season=db.currentSeason||'S5';
+  db.matches.push({date,scores,season});
   pushCloud();
   renderAll();
-  showToast(`✅ ${date} 已保存并同步`);
+  showToast(`✅ ${date} 已存入 ${season}`);
   // auto clear
   resetScores();
 }
@@ -646,6 +759,7 @@ function saveMatch(){
 // ═══════════════════════════ HISTORY ═══════════════════════════
 function renderHistory(){
   const c=document.getElementById('historyList'),ms=sortedMatches();
+  document.querySelector('#pg-history .card-title').innerHTML=`历史比赛记录 <span style="color:var(--accent);font-size:10px;font-weight:400;text-transform:none;font-family:'JetBrains Mono',monospace">${getViewSeason()}</span>`;
   if(!ms.length){c.innerHTML='<div class="empty"><div class="empty-icon">📋</div>暂无记录</div>';return;}
   c.innerHTML=[...ms].reverse().map(m=>{
     const idx=db.matches.indexOf(m);
@@ -692,7 +806,7 @@ function toggleTblMode(){
   renderTable();
 }
 function renderTable(){
-  const all=roster(),hid=new Set(db.hidden||[]),p=all.filter(n=>!hid.has(n)),ms=sortedMatches(),tbl=document.getElementById('dataTable');
+  const all=seasonRoster(),hid=new Set(db.hidden||[]),p=all.filter(n=>!hid.has(n)),ms=sortedMatches(),tbl=document.getElementById('dataTable');
   if(!ms.length){tbl.innerHTML='<thead><tr><th>暂无数据</th></tr></thead><tbody></tbody>';return;}
   const tot={};p.forEach(n=>tot[n]=0);
   const rows=ms.map(m=>{
@@ -710,7 +824,7 @@ function colorFor(i,total){
   return`hsl(${hue},72%,62%)`;
 }
 function renderChartChips(){
-  const all=roster(),hid=new Set(db.hidden||[]),box=document.getElementById('chartChips');
+  const all=seasonRoster(),hid=new Set(db.hidden||[]),box=document.getElementById('chartChips');
   if(!box)return;
   if(!all.length){box.innerHTML='';return;}
   box.innerHTML=all.map((n,i)=>{
@@ -776,7 +890,7 @@ function makeLeaderLinesPlugin(){
 }
 let zoomChartInst=null;
 function openZoom(){
-  const all=roster(),hid=new Set(db.hidden||[]),ms=sortedMatches();
+  const all=seasonRoster(),hid=new Set(db.hidden||[]),ms=sortedMatches();
   const visible=all.filter(n=>!hid.has(n));
   if(!ms.length||!visible.length){showToast('⚠️ 暂无数据');return;}
   document.getElementById('zoomOverlay').classList.add('open');
@@ -787,7 +901,7 @@ function openZoom(){
       let c=0;const data=ms.map(m=>{c+=parseInt(m.scores[n]||0);return c;});
       const col=colorFor(i,all.length);
       const radii=data.map((_,j)=>j===data.length-1?4:0);
-      return{label:n,data,borderColor:col,backgroundColor:col+'33',borderWidth:1.8,pointRadius:radii,pointHoverRadius:6,pointBackgroundColor:col,tension:.3,fill:false};
+      return{label:n,data,borderColor:col,backgroundColor:col+'33',borderWidth:1.8,pointRadius:radii,pointHoverRadius:6,pointBackgroundColor:col,tension:0,fill:false};
     });
     if(zoomChartInst)zoomChartInst.destroy();
     zoomChartInst=new Chart(document.getElementById('zoomChart'),{type:'line',data:{labels:ms.map(m=>m.date.slice(5)),datasets},options:{responsive:true,maintainAspectRatio:false,animation:{duration:300},layout:{padding:{right:210,left:8,top:14,bottom:8}},interaction:{mode:'nearest',intersect:false},plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6868a0',font:{size:12}},grid:{color:'#2e2e3e'}},y:{ticks:{color:'#6868a0',font:{size:12}},grid:{color:'#2e2e3e'}}}},plugins:[makeLeaderLinesPlugin()]});
@@ -799,7 +913,7 @@ function closeZoom(){
   if(zoomChartInst){zoomChartInst.destroy();zoomChartInst=null;}
 }
 function renderChart(){
-  const all=roster(),hid=new Set(db.hidden||[]),ms=sortedMatches(),canvas=document.getElementById('lineChart');
+  const all=seasonRoster(),hid=new Set(db.hidden||[]),ms=sortedMatches(),canvas=document.getElementById('lineChart');
   if(chartInst){chartInst.destroy();chartInst=null;}
   if(!ms.length)return;
   const visible=all.filter(n=>!hid.has(n));
@@ -808,14 +922,14 @@ function renderChart(){
     let c=0;const data=ms.map(m=>{c+=parseInt(m.scores[n]||0);return c;});
     const col=colorFor(i,all.length);
     const radii=data.map((_,j)=>j===data.length-1?3:0);
-    return{label:n,data,borderColor:col,backgroundColor:col+'33',borderWidth:1.5,pointRadius:radii,pointHoverRadius:5,pointBackgroundColor:col,tension:.3,fill:false};
+    return{label:n,data,borderColor:col,backgroundColor:col+'33',borderWidth:1.5,pointRadius:radii,pointHoverRadius:5,pointBackgroundColor:col,tension:0,fill:false};
   });
   chartInst=new Chart(canvas,{type:'line',data:{labels:ms.map(m=>m.date.slice(5)),datasets},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'nearest',intersect:false},plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6868a0',font:{size:11}},grid:{color:'#2e2e3e'}},y:{ticks:{color:'#6868a0',font:{size:11}},grid:{color:'#2e2e3e'}}}}});
 }
 
 // ═══════════════════════════ PRIZE ═══════════════════════════
 function renderPrize(){
-  const c=document.getElementById('prizeMatchList'),ms=sortedMatches();
+  const c=document.getElementById('prizeMatchList'),ms=sortedMatches();selectedPrize=new Set([...selectedPrize].filter(idx=>{const m=db.matches[idx];return m&&(m.season||'S5')===getViewSeason();}));
   if(!ms.length){c.innerHTML='<div class="empty" style="padding:20px">暂无记录</div>';return;}
   c.innerHTML=ms.map(m=>{
     const idx=db.matches.indexOf(m),sel=selectedPrize.has(idx);
@@ -847,6 +961,215 @@ function prizeCalc(chips){
   if(tot>0){const w=Object.fromEntries(Object.entries(chips).filter(([,v])=>v>0)),sw=Object.values(w).reduce((a,b)=>a+b,0);if(sw>0)Object.keys(w).forEach(k=>adj[k]=chips[k]-(chips[k]/sw)*tot);}
   else if(tot<0){const l=Object.fromEntries(Object.entries(chips).filter(([,v])=>v<0)),sl=Object.values(l).reduce((a,b)=>a+Math.abs(b),0);if(sl>0)Object.keys(l).forEach(k=>adj[k]=chips[k]+(Math.abs(chips[k])/sl)*Math.abs(tot));}
   return{adjusted:adj,pounds:Object.fromEntries(Object.entries(adj).map(([k,v])=>[k,parseFloat((v/80).toFixed(2))]))};
+}
+
+// ═══════════════════════════ RECORDS ═══════════════════════════
+function findTopTied(map,minVal=0){
+  let best=minVal;const tied=[];
+  Object.entries(map).forEach(([p,v])=>{
+    if(v>best){best=v;tied.length=0;tied.push(p);}
+    else if(v===best&&v>minVal)tied.push(p);
+  });
+  return{v:best,ps:tied};
+}
+function topTiedStats(arr,key,ascending=false,absMode=false){
+  if(!arr.length)return null;
+  const cmp=(a,b)=>{const aV=absMode?Math.abs(a[key]):a[key];const bV=absMode?Math.abs(b[key]):b[key];return ascending?aV-bV:bV-aV;};
+  const sorted=[...arr].sort(cmp);
+  const topV=absMode?Math.abs(sorted[0][key]):sorted[0][key];
+  const tied=sorted.filter(s=>{const v=absMode?Math.abs(s[key]):s[key];return Math.abs(v-topV)<0.05;});
+  return{v:sorted[0][key],ps:tied.map(s=>s.p)};
+}
+function computeRecords(season){
+  const ms=sortedMatches(season),players=seasonRoster(season);
+  if(!ms.length||!players.length)return null;
+  const total=ms.length;
+  const thr=Math.max(1,Math.floor(total*0.3)+1);
+  const hid=new Set(db.hidden||[]);
+  const att={};players.forEach(p=>{att[p]=attendance(p,ms);});
+  const elig=players.filter(p=>att[p]>=thr&&!hid.has(p));
+  if(!elig.length)return{empty:true,total,thr};
+  const eligSet=new Set(elig);
+  const r={totalMatches:total,thr,eligibleCount:elig.length};
+  // 单场最高/最低 - all ties
+  let highV=-Infinity,lowV=Infinity;
+  const highEntries=[],lowEntries=[];
+  ms.forEach(m=>{
+    Object.entries(m.scores||{}).forEach(([n,vRaw])=>{
+      if(!eligSet.has(n))return;
+      const v=parseInt(vRaw||0);
+      if(v===0)return;
+      if(v>highV){highV=v;highEntries.length=0;highEntries.push({p:n,d:m.date});}
+      else if(v===highV)highEntries.push({p:n,d:m.date});
+      if(v<lowV){lowV=v;lowEntries.length=0;lowEntries.push({p:n,d:m.date});}
+      else if(v===lowV)lowEntries.push({p:n,d:m.date});
+    });
+  });
+  r.high={v:highV,entries:highEntries};
+  r.low={v:lowV,entries:lowEntries};
+  // 单场最大反差
+  let spreadV=-Infinity;const spreadDates=[];
+  ms.forEach(m=>{
+    const ents=Object.entries(m.scores||{}).filter(([n,vRaw])=>eligSet.has(n)&&parseInt(vRaw||0)!==0);
+    if(ents.length<2)return;
+    const vs=ents.map(([,v])=>parseInt(v||0));
+    const sp=Math.max(...vs)-Math.min(...vs);
+    if(sp>spreadV){spreadV=sp;spreadDates.length=0;spreadDates.push(m.date);}
+    else if(sp===spreadV)spreadDates.push(m.date);
+  });
+  r.spread={v:spreadV,dates:spreadDates};
+  // 连续性
+  const wMap={},lMap={},uMap={};
+  elig.forEach(p=>{
+    let cw=0,mw=0,cl=0,mlc=0,cu=0,mu=0;
+    ms.forEach(m=>{
+      const v=parseInt((m.scores||{})[p]||0);
+      if(v===0)return;
+      if(v>0){cw++;cl=0;cu++;}else{cl++;cw=0;cu=0;}
+      mw=Math.max(mw,cw);mlc=Math.max(mlc,cl);mu=Math.max(mu,cu);
+    });
+    wMap[p]=mw;lMap[p]=mlc;uMap[p]=mu;
+  });
+  r.lw=findTopTied(wMap,0);
+  r.ll=findTopTied(lMap,0);
+  r.lu=findTopTied(uMap,0);
+  // 累计巅峰/谷底
+  const peakMap={},troughMap={};
+  elig.forEach(p=>{
+    let c=0,mx=-Infinity,mn=Infinity;
+    ms.forEach(m=>{c+=parseInt((m.scores||{})[p]||0);if(c>mx)mx=c;if(c<mn)mn=c;});
+    peakMap[p]=mx;troughMap[p]=mn;
+  });
+  let peakV=-Infinity;const peakTied=[];
+  Object.entries(peakMap).forEach(([p,v])=>{if(v>peakV){peakV=v;peakTied.length=0;peakTied.push(p);}else if(v===peakV&&v>-Infinity)peakTied.push(p);});
+  r.peak={v:peakV,ps:peakTied};
+  let troughV=Infinity;const troughTied=[];
+  Object.entries(troughMap).forEach(([p,v])=>{if(v<troughV){troughV=v;troughTied.length=0;troughTied.push(p);}else if(v===troughV&&v<Infinity)troughTied.push(p);});
+  r.trough={v:troughV,ps:troughTied};
+  // 出勤之王
+  const attElig={};elig.forEach(p=>{attElig[p]=att[p];});
+  r.mostM=findTopTied(attElig,0);
+  // 单场最高/最低次数最多
+  const topCount={},botCount={};
+  ms.forEach(m=>{
+    const ents=Object.entries(m.scores||{}).filter(([n,vRaw])=>eligSet.has(n)&&parseInt(vRaw||0)!==0);
+    if(!ents.length)return;
+    const vals=ents.map(([,v])=>parseInt(v||0));
+    const mx=Math.max(...vals),mn=Math.min(...vals);
+    ents.forEach(([n,vRaw])=>{
+      const v=parseInt(vRaw||0);
+      if(v===mx)topCount[n]=(topCount[n]||0)+1;
+      if(v===mn)botCount[n]=(botCount[n]||0)+1;
+    });
+  });
+  r.mostTop=findTopTied(topCount,0);
+  r.mostBot=findTopTied(botCount,0);
+  // 性格画像
+  const stats=elig.map(p=>{
+    const vs=ms.filter(m=>parseInt((m.scores||{})[p]||0)!==0).map(m=>parseInt(m.scores[p]||0));
+    if(!vs.length)return null;
+    const sum=vs.reduce((a,b)=>a+b,0),avg=sum/vs.length;
+    const variance=vs.reduce((s,v)=>s+(v-avg)*(v-avg),0)/vs.length;
+    const sd=Math.sqrt(variance);
+    const wins=vs.filter(v=>v>0).length;
+    return{p,avg,sd,wr:wins/vs.length,n:vs.length};
+  }).filter(Boolean);
+  if(stats.length){
+    r.stable=topTiedStats(stats,'sd',true);
+    r.volatile=topTiedStats(stats,'sd',false);
+    r.chill=topTiedStats(stats,'avg',true,true);
+    r.shark=topTiedStats(stats,'wr',false);
+  }
+  return r;
+}
+function fmtScore(v){return(v>0?'+':'')+v;}
+function fmtPS(ps){
+  if(!ps||!ps.length)return '';
+  if(ps.length<=3)return ps.join(' / ');
+  return ps.slice(0,3).join(' / ')+` +${ps.length-3}`;
+}
+function fmtEntries(entries){
+  if(!entries||!entries.length)return '';
+  const list=entries.slice(0,3).map(e=>e.p+(e.d?'·'+e.d.slice(5):''));
+  if(entries.length>3)list.push(`+${entries.length-3}`);
+  return list.join(' / ');
+}
+function fmtDates(dates){
+  if(!dates||!dates.length)return '';
+  const list=dates.slice(0,3).map(d=>d.slice(5));
+  if(dates.length>3)list.push(`+${dates.length-3}`);
+  return list.join(' / ');
+}
+function renderRecords(){
+  const c=document.getElementById('recordsList');if(!c)return;
+  const tag=document.getElementById('recordsSeasonTag');if(tag)tag.textContent=getViewSeason();
+  const r=computeRecords();
+  const note='<div style="grid-column:1/-1;font-size:11px;color:var(--muted);margin-bottom:6px;line-height:1.5">📌 仅评估出勤率 > 30% 的选手；某场得分 0 视为未参赛；隐藏的选手不参与</div>';
+  if(!r){c.innerHTML=note+'<div class="empty" style="grid-column:1/-1;padding:30px"><div class="empty-icon">📊</div>本赛季暂无数据</div>';return;}
+  if(r.empty){c.innerHTML=note+`<div class="empty" style="grid-column:1/-1;padding:30px"><div class="empty-icon">⚠️</div>本赛季 ${r.total} 场，无人达到出勤率 > 30%</div>`;return;}
+  const items=[
+    {ic:'🏆',l:'单场最高',v:r.high.v>-Infinity?fmtScore(r.high.v):'—',m:fmtEntries(r.high.entries)},
+    {ic:'💀',l:'单场最低',v:r.low.v<Infinity?fmtScore(r.low.v):'—',m:fmtEntries(r.low.entries),neg:r.low.v<0},
+    {ic:'⚡',l:'单场最大反差',v:r.spread.v>-Infinity?r.spread.v+'分':'—',m:fmtDates(r.spread.dates)},
+    {ic:'👑',l:'最高分次数最多',v:r.mostTop.v+'次',m:fmtPS(r.mostTop.ps)},
+    {ic:'💸',l:'最低分次数最多',v:r.mostBot.v+'次',m:fmtPS(r.mostBot.ps),neg:r.mostBot.v>0},
+    {ic:'🔥',l:'最长连胜',v:r.lw.v+'场',m:fmtPS(r.lw.ps)},
+    {ic:'🥶',l:'最长连败',v:r.ll.v+'场',m:fmtPS(r.ll.ps),neg:r.ll.v>0},
+    {ic:'🛡️',l:'最长不输',v:r.lu.v+'场',m:fmtPS(r.lu.ps)},
+    {ic:'📈',l:'赛季巅峰',v:r.peak.v>-Infinity?fmtScore(r.peak.v):'—',m:fmtPS(r.peak.ps)},
+    {ic:'📉',l:'赛季谷底',v:r.trough.v<Infinity?fmtScore(r.trough.v):'—',m:fmtPS(r.trough.ps),neg:r.trough.v<0},
+    {ic:'🎯',l:'出勤之王',v:r.mostM.v+'场',m:fmtPS(r.mostM.ps)},
+  ];
+  if(r.stable)items.push({ic:'🧊',l:'最稳定',v:'σ '+r.stable.v.toFixed(1),m:fmtPS(r.stable.ps)});
+  if(r.volatile)items.push({ic:'🎢',l:'最起伏',v:'σ '+r.volatile.v.toFixed(1),m:fmtPS(r.volatile.ps)});
+  if(r.chill)items.push({ic:'😴',l:'最爱划水',v:'平均 '+r.chill.v.toFixed(1),m:fmtPS(r.chill.ps)});
+  if(r.shark)items.push({ic:'🦈',l:'大鲨鱼',v:'赢率 '+(r.shark.v*100).toFixed(0)+'%',m:fmtPS(r.shark.ps)});
+  c.innerHTML=note+items.map(it=>`<div class="rec-item"><div class="rec-icon">${it.ic}</div><div class="rec-label">${it.l}</div><div class="rec-value ${it.neg?'neg':''}">${it.v}</div><div class="rec-meta">${it.m}</div></div>`).join('');
+}
+function renderHistorical(){
+  const c=document.getElementById('historicalList');if(!c)return;
+  if(!db.seasons||!db.seasons.length){c.innerHTML='<div class="empty" style="padding:20px">暂无赛季</div>';return;}
+  const hid=new Set(db.hidden||[]);
+  // 历届冠军 + 总分
+  const rows=db.seasons.map(s=>{
+    const sm=sortedMatches(s),sp=seasonRoster(s).filter(p=>!hid.has(p));
+    if(!sm.length||!sp.length)return null;
+    const tot={};sp.forEach(p=>tot[p]=0);
+    sm.forEach(m=>sp.forEach(p=>tot[p]+=parseInt(m.scores[p]||0)));
+    const ranked=Object.entries(tot).sort((a,b)=>b[1]-a[1]);
+    return{season:s,first:ranked[0],second:ranked[1],third:ranked[2],n:sm.length};
+  }).filter(Boolean);
+  // 全时单场记录（过滤隐藏）
+  let aHigh={v:-Infinity},aLow={v:Infinity};
+  db.matches.forEach(m=>{Object.entries(m.scores||{}).forEach(([n,vRaw])=>{if(hid.has(n))return;const v=parseInt(vRaw||0);if(v===0)return;if(v>aHigh.v)aHigh={v,p:n,d:m.date,s:m.season||'S5'};if(v<aLow.v)aLow={v,p:n,d:m.date,s:m.season||'S5'};});});
+  // 累计总积分（过滤隐藏）
+  const allTot={};
+  db.matches.forEach(m=>Object.entries(m.scores||{}).forEach(([n,v])=>{if(hid.has(n))return;allTot[n]=(allTot[n]||0)+parseInt(v||0);}));
+  const allRank=Object.entries(allTot).sort((a,b)=>b[1]-a[1]);
+
+  let html='';
+  if(rows.length){
+    html+='<div style="font-size:11px;color:var(--muted);margin-bottom:8px;letter-spacing:1px">历届赛季冠亚季</div>';
+    html+=rows.reverse().map(({season,first,second,third,n})=>{
+      const med=(e,m)=>e?`<span style="margin-right:8px">${m} ${e[0]} <span style="color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:11px">(${fmtScore(e[1])})</span></span>`:'';
+      return`<div class="history-item" style="display:block">
+        <div class="history-date" style="margin-bottom:6px">${season} <span style="color:var(--muted);font-size:11px;font-weight:400">· ${n}场</span></div>
+        <div style="font-size:13px">${med(first,'🥇')}${med(second,'🥈')}${med(third,'🥉')}</div>
+      </div>`;
+    }).join('');
+  }
+  if(allRank.length){
+    html+='<div style="font-size:11px;color:var(--muted);margin:14px 0 8px;letter-spacing:1px">累计总积分（所有赛季）</div>';
+    html+=`<div class="tbl-wrap"><table><thead><tr><th>排名</th><th>选手</th><th>累计</th></tr></thead><tbody>${allRank.slice(0,10).map((e,i)=>`<tr><td>${i+1}</td><td>${e[0]}</td><td class="${e[1]>0?'pos':e[1]<0?'neg':''}">${fmtScore(e[1])}</td></tr>`).join('')}</tbody></table></div>`;
+  }
+  if(aHigh.v>-Infinity){
+    html+=`<div style="font-size:11px;color:var(--muted);margin:14px 0 8px;letter-spacing:1px">单场历史记录</div>
+    <div class="records-grid">
+      <div class="rec-item"><div class="rec-icon">🏆</div><div class="rec-label">历史最高</div><div class="rec-value">${fmtScore(aHigh.v)}</div><div class="rec-meta">${aHigh.p} · ${aHigh.s} · ${aHigh.d}</div></div>
+      <div class="rec-item"><div class="rec-icon">💀</div><div class="rec-label">历史最低</div><div class="rec-value neg">${fmtScore(aLow.v)}</div><div class="rec-meta">${aLow.p} · ${aLow.s} · ${aLow.d}</div></div>
+    </div>`;
+  }
+  c.innerHTML=html||'<div class="empty" style="padding:20px">暂无历史数据</div>';
 }
 
 // ═══════════════════════════ PLAYERS ═══════════════════════════
@@ -893,10 +1216,11 @@ function importJSON(e){
       const data=JSON.parse(ev.target.result);
       // 兼容旧版（纯数组）和新版（对象）
       if(Array.isArray(data)){
-        db={matches:data,players:[]};
+        db={matches:data,players:[],hidden:[],seasons:['S5'],currentSeason:'S5'};
       } else {
-        db={matches:data.matches||[],players:data.players||[]};
+        db={matches:data.matches||[],players:data.players||[],hidden:data.hidden||[],seasons:data.seasons||['S5'],currentSeason:data.currentSeason||'S5'};
       }
+      migrateData();
       pushCloud();
       renderAll();
       showToast(`✅ 导入成功：${db.matches.length} 场比赛，已同步到云端`);
@@ -966,22 +1290,34 @@ async function launchViewer(binId,apiKey){
     .chip-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
     .vchip{display:inline-flex;align-items:center;gap:6px;background:#22222e;border:1px solid #2e2e3e;border-radius:20px;padding:5px 11px 5px 9px;font-size:12px;color:#eeeef5;-webkit-user-select:none;user-select:none}
     .vchip-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+    .vseason{background:#22222e;border:1px solid #2e2e3e;color:#f0c060;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;padding:5px 10px;border-radius:14px;outline:none;-webkit-appearance:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23f0c060' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center;padding-right:24px}
+    .vrecords{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .vrec{background:#22222e;border:1px solid #2e2e3e;border-radius:12px;padding:12px 10px}
+    .vrec-icon{font-size:20px;margin-bottom:4px}
+    .vrec-label{font-size:10px;color:#6868a0;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;font-weight:600}
+    .vrec-value{font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:#f0c060;margin-bottom:2px;line-height:1.3}
+    .vrec-value.neg{color:#ff6b6b}
+    .vrec-meta{font-size:10px;color:#6868a0;line-height:1.3}
     .zbtn{background:#22222e;border:1px solid #2e2e3e;color:#6ab4ff;font-family:'Noto Sans SC',sans-serif;font-size:12px;padding:6px 12px;border-radius:8px;cursor:pointer}
     .zoom-overlay{position:fixed;inset:0;background:#0f0f13;z-index:9999;display:none}
     .zoom-overlay.open{display:block}
     .zoom-close{position:fixed;top:max(14px,env(safe-area-inset-top));right:max(14px,env(safe-area-inset-right));z-index:10001;background:rgba(34,34,46,.92);border:1px solid #2e2e3e;color:#eeeef5;width:42px;height:42px;border-radius:21px;cursor:pointer;font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center}
     .zoom-rotate{position:fixed;top:50%;left:50%;width:94vw;height:80vh;transform:translate(-50%,-50%);z-index:10000}
     @media (orientation:portrait){.zoom-rotate{width:92vh;height:80vw;transform:translate(-50%,-50%) rotate(90deg)}}
-    .tbl-wrap{overflow-x:auto;border-radius:10px;border:1px solid #2e2e3e}
-    table{width:100%;border-collapse:collapse;font-size:12px;font-family:'JetBrains Mono',monospace;white-space:nowrap}
-    th{background:#22222e;color:#6868a0;font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:9px 10px;text-align:left;border-bottom:1px solid #2e2e3e}
-    td{padding:9px 10px;border-bottom:1px solid #3a3a52}
+    .tbl-wrap{overflow:auto;max-height:60vh;border-radius:10px;border:1px solid #2e2e3e}
+    table{width:100%;border-collapse:separate;border-spacing:0;font-size:12px;font-family:'JetBrains Mono',monospace;white-space:nowrap}
+    th{background:#22222e;color:#6868a0;font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:9px 10px;text-align:left;border-bottom:1px solid #2e2e3e;position:sticky;top:0;z-index:5}
+    td{padding:9px 10px;border-bottom:1px solid #3a3a52;background:#18181f}
+    th:first-child,td:first-child{position:sticky;left:0;z-index:4}
+    th:first-child{background:#22222e;z-index:6;border-right:1px solid #2e2e3e}
+    td:first-child{background:#18181f;border-right:1px solid #2e2e3e}
     tr:last-child td{border-bottom:none}
     td.pos{color:#5de8b0}td.neg{color:#ff6b6b}
   </style>
   <header>
     <div class="logo">🏆 积分排行榜</div>
-    <div style="display:flex;align-items:center;gap:8px">
+    <div style="display:flex;align-items:center;gap:6px">
+      <select class="vseason" id="vSeasonSel"></select>
       <span class="rf" id="rfInfo">加载中…</span>
       <button class="rf-btn" onclick="fetchAndShow()">刷新</button>
     </div>
@@ -1001,6 +1337,10 @@ async function launchViewer(binId,apiKey){
       <h2>每场后累计积分</h2>
       <div class="tbl-wrap"><table id="trendTable"></table></div>
     </div>
+    <div class="card" id="recordsCardV" style="display:none">
+      <h2>本赛季记录</h2>
+      <div id="vRecords" class="vrecords"></div>
+    </div>
     <div class="footer" id="foot"></div>
   </div>
   <div class="zoom-overlay" id="zoomOverlay">
@@ -1008,31 +1348,52 @@ async function launchViewer(binId,apiKey){
     <div class="zoom-rotate"><canvas id="zoomChart"></canvas></div>
   </div>`;
 
+  let lastData=null;
   async function fetchAndShow(){
     document.getElementById('rfInfo').textContent='加载中…';
     try{
       const res=await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`,{headers:{'X-Master-Key':apiKey}});
       const j=await res.json();
       if(!j.record){document.getElementById('list').innerHTML='<div class="loading" style="color:#ff6b6b">加载失败，请刷新</div>';return;}
-      const d=j.record,names=new Set(d.players||[]);
-      (d.matches||[]).forEach(m=>Object.keys(m.scores||{}).forEach(n=>names.add(n)));
-      const players=[...names].sort(),tot={};players.forEach(p=>tot[p]=0);
-      const ms=[...(d.matches||[])].sort((a,b)=>a.date.localeCompare(b.date));
-      ms.forEach(m=>players.forEach(p=>{tot[p]+=parseInt(m.scores[p]||0);}));
-      const sorted=Object.entries(tot).sort((a,b)=>b[1]-a[1]);
-      const medals=['🥇','🥈','🥉'],tcls=['t1','t2','t3'];
-      let html=sorted.map(([name,score],i)=>{
-        const med=i<3?`<div class="medal">${medals[i]}</div>`:`<div class="num">${i+1}</div>`;
-        return`<div class="item ${tcls[i]||''}">${med}<span class="name">${name}</span><span class="score ${score<0?'n':''}">${score>0?'+':''}${score}</span></div>`;
-      }).join('');
-      if(!sorted.length)html='<div class="loading">暂无数据</div>';
-      document.getElementById('list').innerHTML=html;
+      lastData=j.record;
+      // 兼容老数据
+      (lastData.matches||[]).forEach(m=>{if(!m.season)m.season='S5';});
+      lastData.seasons=lastData.seasons&&lastData.seasons.length?lastData.seasons:['S5'];
+      lastData.currentSeason=lastData.currentSeason||'S5';
+      // 同步赛季选择器
+      const sel=document.getElementById('vSeasonSel');
+      const prev=sel.value;
+      sel.innerHTML=lastData.seasons.map(s=>`<option value="${s}" ${s===lastData.currentSeason?'data-cur="1"':''}>${s}${s===lastData.currentSeason?' · 当前':''}</option>`).join('');
+      sel.value=prev&&lastData.seasons.includes(prev)?prev:lastData.currentSeason;
+      sel.onchange=()=>renderForSeason();
+      renderForSeason();
       const t=new Date().toLocaleTimeString('zh',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
       document.getElementById('rfInfo').textContent='更新 '+t;
-      document.getElementById('foot').textContent=`${sorted.length}名选手 · ${ms.length}场比赛 · 30秒自动刷新`;
-      const hid=new Set(d.hidden||[]);
-      renderTrend(players,ms,hid);
     }catch{document.getElementById('list').innerHTML='<div class="loading" style="color:#ff6b6b">网络错误</div>';document.getElementById('rfInfo').textContent='加载失败';}
+  }
+  function renderForSeason(){
+    if(!lastData)return;
+    const d=lastData;
+    const sel=document.getElementById('vSeasonSel');
+    const sea=sel.value||d.currentSeason||'S5';
+    const seaMs=(d.matches||[]).filter(m=>(m.season||'S5')===sea);
+    const hid=new Set(d.hidden||[]);
+    const names=new Set();
+    seaMs.forEach(m=>Object.keys(m.scores||{}).forEach(n=>{if(!hid.has(n))names.add(n);}));
+    const players=[...names].sort(),tot={};players.forEach(p=>tot[p]=0);
+    const ms=[...seaMs].sort((a,b)=>a.date.localeCompare(b.date));
+    ms.forEach(m=>players.forEach(p=>{tot[p]+=parseInt(m.scores[p]||0);}));
+    const sorted=Object.entries(tot).sort((a,b)=>b[1]-a[1]);
+    const medals=['🥇','🥈','🥉'],tcls=['t1','t2','t3'];
+    let html=sorted.map(([name,score],i)=>{
+      const med=i<3?`<div class="medal">${medals[i]}</div>`:`<div class="num">${i+1}</div>`;
+      return`<div class="item ${tcls[i]||''}">${med}<span class="name">${name}</span><span class="score ${score<0?'n':''}">${score>0?'+':''}${score}</span></div>`;
+    }).join('');
+    if(!sorted.length)html='<div class="loading">本赛季暂无数据</div>';
+    document.getElementById('list').innerHTML=html;
+    document.getElementById('foot').textContent=`${sea} · ${sorted.length}名选手 · ${ms.length}场比赛 · 30秒自动刷新`;
+    renderTrend(players,ms,new Set());
+    renderViewerRecords(players,ms);
   }
 
   function renderTrend(allPlayers,ms,hid){
@@ -1054,7 +1415,7 @@ async function launchViewer(binId,apiKey){
       let c=0;const data=ms.map(m=>{c+=parseInt(m.scores[n]||0);return c;});
       const col=vColor(i,allPlayers.length);
       const radii=data.map((_,j)=>j===data.length-1?3:0);
-      return{label:n,data,borderColor:col,backgroundColor:col+'33',borderWidth:1.5,pointRadius:radii,pointHoverRadius:5,pointBackgroundColor:col,tension:.3,fill:false};
+      return{label:n,data,borderColor:col,backgroundColor:col+'33',borderWidth:1.5,pointRadius:radii,pointHoverRadius:5,pointBackgroundColor:col,tension:0,fill:false};
     });
     if(viewerChart)viewerChart.destroy();
     viewerChart=new Chart(document.getElementById('trendChart'),{type:'line',data:{labels:ms.map(m=>m.date.slice(5)),datasets},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'nearest',intersect:false},plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6868a0',font:{size:11}},grid:{color:'#2e2e3e'}},y:{ticks:{color:'#6868a0',font:{size:11}},grid:{color:'#2e2e3e'}}}}});
@@ -1070,6 +1431,60 @@ async function launchViewer(binId,apiKey){
   window.fetchAndShow=fetchAndShow;
   document.body.style.cssText='height:auto;overflow:visible;overflow-y:auto;overscroll-behavior:auto;background:#0f0f13;color:#eeeef5;font-family:Noto Sans SC,sans-serif;min-height:100vh;margin:0';
 
+  function renderViewerRecords(players,ms){
+    const card=document.getElementById('recordsCardV'),box=document.getElementById('vRecords');
+    if(!ms.length||!players.length){card.style.display='none';return;}
+    card.style.display='block';
+    const fmt=v=>(v>0?'+':'')+v;
+    const fmtPS=ps=>!ps||!ps.length?'':ps.length<=3?ps.join(' / '):ps.slice(0,3).join(' / ')+` +${ps.length-3}`;
+    const fmtEntries=es=>{if(!es||!es.length)return '';const list=es.slice(0,3).map(e=>e.p+(e.d?'·'+e.d.slice(5):''));if(es.length>3)list.push(`+${es.length-3}`);return list.join(' / ');};
+    const fmtDates=ds=>{if(!ds||!ds.length)return '';const list=ds.slice(0,3).map(d=>d.slice(5));if(ds.length>3)list.push(`+${ds.length-3}`);return list.join(' / ');};
+    const findTop=(map,minV=0)=>{let best=minV;const tied=[];Object.entries(map).forEach(([p,v])=>{if(v>best){best=v;tied.length=0;tied.push(p);}else if(v===best&&v>minV)tied.push(p);});return{v:best,ps:tied};};
+    const topStats=(arr,key,asc=false,absMode=false)=>{if(!arr.length)return null;const cmp=(a,b)=>{const aV=absMode?Math.abs(a[key]):a[key];const bV=absMode?Math.abs(b[key]):b[key];return asc?aV-bV:bV-aV;};const sorted=[...arr].sort(cmp);const topV=absMode?Math.abs(sorted[0][key]):sorted[0][key];const tied=sorted.filter(s=>{const v=absMode?Math.abs(s[key]):s[key];return Math.abs(v-topV)<0.05;});return{v:sorted[0][key],ps:tied.map(s=>s.p)};};
+    const att={};players.forEach(p=>{att[p]=ms.filter(m=>parseInt((m.scores||{})[p]||0)!==0).length;});
+    const total=ms.length,thr=Math.max(1,Math.floor(total*0.3)+1);
+    const elig=players.filter(p=>att[p]>=thr);
+    const note='<div style="grid-column:1/-1;font-size:11px;color:#6868a0;margin-bottom:6px;line-height:1.5">📌 仅评估出勤率 > 30% 的选手；某场得分 0 视为未参赛；隐藏的选手不参与</div>';
+    if(!elig.length){box.innerHTML=note+`<div class="loading" style="grid-column:1/-1">本赛季 ${total} 场，无人达到出勤率 > 30%</div>`;return;}
+    const eligSet=new Set(elig);
+    let highV=-Infinity,lowV=Infinity;const highEntries=[],lowEntries=[];
+    ms.forEach(m=>{Object.entries(m.scores||{}).forEach(([n,vRaw])=>{if(!eligSet.has(n))return;const v=parseInt(vRaw||0);if(v===0)return;if(v>highV){highV=v;highEntries.length=0;highEntries.push({p:n,d:m.date});}else if(v===highV)highEntries.push({p:n,d:m.date});if(v<lowV){lowV=v;lowEntries.length=0;lowEntries.push({p:n,d:m.date});}else if(v===lowV)lowEntries.push({p:n,d:m.date});});});
+    let spreadV=-Infinity;const spreadDates=[];
+    ms.forEach(m=>{const ents=Object.entries(m.scores||{}).filter(([n,vRaw])=>eligSet.has(n)&&parseInt(vRaw||0)!==0);if(ents.length<2)return;const vs=ents.map(([,v])=>parseInt(v||0));const sp=Math.max(...vs)-Math.min(...vs);if(sp>spreadV){spreadV=sp;spreadDates.length=0;spreadDates.push(m.date);}else if(sp===spreadV)spreadDates.push(m.date);});
+    const wMap={},lMap={},uMap={};
+    elig.forEach(p=>{let cw=0,mw=0,cl=0,mlc=0,cu=0,mu=0;ms.forEach(m=>{const v=parseInt((m.scores||{})[p]||0);if(v===0)return;if(v>0){cw++;cl=0;cu++;}else{cl++;cw=0;cu=0;}mw=Math.max(mw,cw);mlc=Math.max(mlc,cl);mu=Math.max(mu,cu);});wMap[p]=mw;lMap[p]=mlc;uMap[p]=mu;});
+    const lw=findTop(wMap,0),ll=findTop(lMap,0),lu=findTop(uMap,0);
+    const peakMap={},troughMap={};
+    elig.forEach(p=>{let c=0,mx=-Infinity,mn=Infinity;ms.forEach(m=>{c+=parseInt((m.scores||{})[p]||0);if(c>mx)mx=c;if(c<mn)mn=c;});peakMap[p]=mx;troughMap[p]=mn;});
+    let peakV=-Infinity;const peakTied=[];Object.entries(peakMap).forEach(([p,v])=>{if(v>peakV){peakV=v;peakTied.length=0;peakTied.push(p);}else if(v===peakV&&v>-Infinity)peakTied.push(p);});
+    let troughV=Infinity;const troughTied=[];Object.entries(troughMap).forEach(([p,v])=>{if(v<troughV){troughV=v;troughTied.length=0;troughTied.push(p);}else if(v===troughV&&v<Infinity)troughTied.push(p);});
+    const attElig={};elig.forEach(p=>{attElig[p]=att[p];});
+    const mostM=findTop(attElig,0);
+    const topCount={},botCount={};
+    ms.forEach(m=>{const ents=Object.entries(m.scores||{}).filter(([n,vRaw])=>eligSet.has(n)&&parseInt(vRaw||0)!==0);if(!ents.length)return;const vals=ents.map(([,v])=>parseInt(v||0));const mx=Math.max(...vals),mn=Math.min(...vals);ents.forEach(([n,vRaw])=>{const v=parseInt(vRaw||0);if(v===mx)topCount[n]=(topCount[n]||0)+1;if(v===mn)botCount[n]=(botCount[n]||0)+1;});});
+    const mostTop=findTop(topCount,0),mostBot=findTop(botCount,0);
+    const stats=elig.map(p=>{const vs=ms.filter(m=>parseInt((m.scores||{})[p]||0)!==0).map(m=>parseInt(m.scores[p]||0));if(!vs.length)return null;const sum=vs.reduce((a,b)=>a+b,0),avg=sum/vs.length;const variance=vs.reduce((s,v)=>s+(v-avg)*(v-avg),0)/vs.length;const sd=Math.sqrt(variance);const wins=vs.filter(v=>v>0).length;return{p,avg,sd,wr:wins/vs.length};}).filter(Boolean);
+    let stable,volatile,chill,shark;
+    if(stats.length){stable=topStats(stats,'sd',true);volatile=topStats(stats,'sd',false);chill=topStats(stats,'avg',true,true);shark=topStats(stats,'wr',false);}
+    const items=[
+      {ic:'🏆',l:'单场最高',v:highV>-Infinity?fmt(highV):'—',m:fmtEntries(highEntries)},
+      {ic:'💀',l:'单场最低',v:lowV<Infinity?fmt(lowV):'—',m:fmtEntries(lowEntries),neg:lowV<0},
+      {ic:'⚡',l:'单场最大反差',v:spreadV>-Infinity?spreadV+'分':'—',m:fmtDates(spreadDates)},
+      {ic:'👑',l:'最高分次数最多',v:mostTop.v+'次',m:fmtPS(mostTop.ps)},
+      {ic:'💸',l:'最低分次数最多',v:mostBot.v+'次',m:fmtPS(mostBot.ps),neg:mostBot.v>0},
+      {ic:'🔥',l:'最长连胜',v:lw.v+'场',m:fmtPS(lw.ps)},
+      {ic:'🥶',l:'最长连败',v:ll.v+'场',m:fmtPS(ll.ps),neg:ll.v>0},
+      {ic:'🛡️',l:'最长不输',v:lu.v+'场',m:fmtPS(lu.ps)},
+      {ic:'📈',l:'赛季巅峰',v:peakV>-Infinity?fmt(peakV):'—',m:fmtPS(peakTied)},
+      {ic:'📉',l:'赛季谷底',v:troughV<Infinity?fmt(troughV):'—',m:fmtPS(troughTied),neg:troughV<0},
+      {ic:'🎯',l:'出勤之王',v:mostM.v+'场',m:fmtPS(mostM.ps)},
+    ];
+    if(stable)items.push({ic:'🧊',l:'最稳定',v:'σ '+stable.v.toFixed(1),m:fmtPS(stable.ps)});
+    if(volatile)items.push({ic:'🎢',l:'最起伏',v:'σ '+volatile.v.toFixed(1),m:fmtPS(volatile.ps)});
+    if(chill)items.push({ic:'😴',l:'最爱划水',v:'平均 '+chill.v.toFixed(1),m:fmtPS(chill.ps)});
+    if(shark)items.push({ic:'🦈',l:'大鲨鱼',v:'赢率 '+(shark.v*100).toFixed(0)+'%',m:fmtPS(shark.ps)});
+    box.innerHTML=note+items.map(it=>`<div class="vrec"><div class="vrec-icon">${it.ic}</div><div class="vrec-label">${it.l}</div><div class="vrec-value ${it.neg?'neg':''}">${it.v}</div><div class="vrec-meta">${it.m}</div></div>`).join('');
+  }
   let zoomInst=null,lastSnapshot=null;
   function leaderPlugin(){
     return{id:'leaderLines',afterDatasetsDraw(chart){
@@ -1121,7 +1536,7 @@ async function launchViewer(binId,apiKey){
         let c=0;const data=ms.map(m=>{c+=parseInt(m.scores[n]||0);return c;});
         const col=vColor(i,allPlayers.length);
         const radii=data.map((_,j)=>j===data.length-1?4:0);
-        return{label:n,data,borderColor:col,backgroundColor:col+'33',borderWidth:1.8,pointRadius:radii,pointHoverRadius:6,pointBackgroundColor:col,tension:.3,fill:false};
+        return{label:n,data,borderColor:col,backgroundColor:col+'33',borderWidth:1.8,pointRadius:radii,pointHoverRadius:6,pointBackgroundColor:col,tension:0,fill:false};
       });
       if(zoomInst)zoomInst.destroy();
       zoomInst=new Chart(document.getElementById('zoomChart'),{type:'line',data:{labels:ms.map(m=>m.date.slice(5)),datasets},options:{responsive:true,maintainAspectRatio:false,animation:{duration:300},layout:{padding:{right:210,left:8,top:14,bottom:8}},interaction:{mode:'nearest',intersect:false},plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6868a0',font:{size:12}},grid:{color:'#2e2e3e'}},y:{ticks:{color:'#6868a0',font:{size:12}},grid:{color:'#2e2e3e'}}}},plugins:[leaderPlugin()]});
