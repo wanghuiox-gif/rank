@@ -954,7 +954,7 @@ function calcPrize(){
     const raw=comb[n]||0,adj=adjusted[n],cls=lbs>=0?'pos':'neg';
     return`<tr><td>${n}</td><td class="${raw>0?'pos':raw<0?'neg':''}">${raw>0?'+':''}${raw}</td><td>${adj>0?'+':''}${adj.toFixed(1)}</td><td class="${cls}">${lbs>=0?'+':''}£${lbs.toFixed(2)}</td></tr>`;
   }).join('');
-  r.innerHTML=`<div style="font-size:11px;color:var(--muted);margin-bottom:8px">已选${selectedPrize.size}场 · 差值${total>0?'+':''}${total}（${(total/80).toFixed(2)}镑）</div><div class="tbl-wrap"><table><thead><tr><th>选手</th><th>原始</th><th>调整</th><th>英镑</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  r.innerHTML=`<div style="font-size:11px;color:var(--muted);margin-bottom:8px">已选${selectedPrize.size}场 · 差值${total>0?'+':''}${total}（${(total/80).toFixed(2)}镑）</div><div class="tbl-wrap" style="max-height:none;overflow:visible"><table><thead><tr><th>选手</th><th>原始</th><th>调整</th><th>英镑</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 function prizeCalc(chips){
   const tot=Object.values(chips).reduce((a,b)=>a+b,0),adj={...chips};
