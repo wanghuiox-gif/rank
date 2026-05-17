@@ -440,6 +440,24 @@ td.pos{color:var(--green)}td.neg{color:var(--red)}
   </nav>
 </div><!-- /mainApp -->
 
+<!-- ── CONFIRM SAVE SHEET ── -->
+<div class="sheet-overlay" id="confirmSheet">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">✅ 确认日期 & 保存</div>
+    <div class="field">
+      <label>比赛日期 <span id="confirmWeek" style="color:var(--accent);margin-left:6px;font-family:'JetBrains Mono',monospace;font-size:12px"></span></label>
+      <input type="date" id="confirmDate" onchange="updateConfirmWeekday()">
+      <div style="font-size:11px;color:var(--muted);margin-top:6px">⚠️ 默认是今天，请核对！如有错误请直接修改</div>
+    </div>
+    <div id="confirmSummary"></div>
+    <div class="sheet-btns" style="margin-top:14px">
+      <button class="btn btn-ghost" style="flex:1" onclick="closeSheet('confirmSheet')">返回修改</button>
+      <button class="btn btn-primary" style="flex:2" onclick="confirmSave()">确认保存</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── EDIT SHEET ── -->
 <div class="sheet-overlay" id="editSheet">
   <div class="sheet">
@@ -695,6 +713,15 @@ function roster(){
   db.matches.forEach(m=>Object.keys(m.scores||{}).forEach(n=>s.add(n)));
   return[...s].sort();
 }
+function entryRoster(){
+  // 录入页：按当前赛季出场次数倒序，相同则按名字
+  const all=roster();
+  const ms=seasonMatches(db.currentSeason||'S5');
+  return all
+    .map(p=>[p,attendance(p,ms)])
+    .sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0]))
+    .map(([p])=>p);
+}
 function seasonMatches(s){const sea=s||getViewSeason();return db.matches.filter(m=>(m.season||'S5')===sea);}
 function sortedMatches(s){return[...seasonMatches(s)].sort((a,b)=>a.date.localeCompare(b.date));}
 function seasonRoster(s){
@@ -787,8 +814,8 @@ function renderRank(){
 // ═══════════════════════════ ENTRY ═══════════════════════════
 function setToday(){document.getElementById('entryDate').value=new Date().toISOString().slice(0,10);}
 
-function buildScoreRows(containerEl, matchScores){
-  const p=roster();
+function buildScoreRows(containerEl, matchScores, names){
+  const p=names||roster();
   if(!p.length){containerEl.innerHTML='<div class="empty">请先在「选手」页添加选手</div>';return;}
   containerEl.innerHTML=p.map(name=>{
     const v=matchScores?parseInt(matchScores[name]||0):0;
@@ -805,7 +832,7 @@ function buildScoreRows(containerEl, matchScores){
   }).join('');
 }
 
-function renderScoreList(){buildScoreRows(document.getElementById('scoreList'),null);}
+function renderScoreList(){buildScoreRows(document.getElementById('scoreList'),null,entryRoster());}
 
 function adjScore(btn,delta){
   const inp=btn.parentElement.querySelector('.score-val');
@@ -829,13 +856,57 @@ function collectScores(container){
   return scores;
 }
 
-async function saveMatch(){
+// 点保存 → 弹确认窗（防止忘改日期）
+function saveMatch(){
   const date=document.getElementById('entryDate').value;
   if(!date){showToast('⚠️ 请选择日期');return;}
   if(!roster().length){showToast('⚠️ 请先添加选手');return;}
+  document.getElementById('confirmDate').value=date;
+  updateConfirmWeekday();
+  renderConfirmSummary();
+  openSheet('confirmSheet');
+}
+function updateConfirmWeekday(){
+  const v=document.getElementById('confirmDate').value;
+  const el=document.getElementById('confirmWeek');
+  if(!v){el.textContent='';return;}
+  const d=new Date(v+'T00:00:00');
+  const today=new Date();today.setHours(0,0,0,0);
+  const ws=['周日','周一','周二','周三','周四','周五','周六'];
+  const diff=Math.round((d-today)/(86400000));
+  let rel='';
+  if(diff===0)rel=' · 今天';
+  else if(diff===-1)rel=' · 昨天';
+  else if(diff===-2)rel=' · 前天';
+  else if(diff<0)rel=` · ${-diff} 天前`;
+  else if(diff>0)rel=` · ${diff} 天后`;
+  el.textContent=ws[d.getDay()]+rel;
+}
+function renderConfirmSummary(){
+  const scores=collectScores(document.getElementById('scoreList'));
+  const entries=Object.entries(scores).filter(([,v])=>v!==0).sort((a,b)=>b[1]-a[1]);
+  const box=document.getElementById('confirmSummary');
+  const head=`<div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin:10px 0 6px">本场得分（${entries.length} 人参赛）</div>`;
+  if(!entries.length){
+    box.innerHTML=head+'<div style="color:var(--red);font-size:13px">⚠️ 所有人都是 0 分，确认要保存空场吗？</div>';
+    return;
+  }
+  const rows=entries.map(([n,v])=>{
+    const cls=v>0?'pos':v<0?'neg':'';
+    const sign=v>0?'+':'';
+    return`<div style="display:flex;justify-content:space-between;padding:6px 10px;background:var(--surface2);border-radius:8px;margin-bottom:4px"><span>${n}</span><span class="score-val ${cls}" style="font-family:'JetBrains Mono',monospace;font-weight:700">${sign}${v}</span></div>`;
+  }).join('');
+  box.innerHTML=head+`<div style="max-height:30vh;overflow-y:auto">${rows}</div>`;
+}
+async function confirmSave(){
+  const date=document.getElementById('confirmDate').value;
+  if(!date){showToast('⚠️ 请选择日期');return;}
+  // 同步回录入页（用户在弹窗里改过日期）
+  document.getElementById('entryDate').value=date;
   const scores=collectScores(document.getElementById('scoreList'));
   const season=db.currentSeason||'S5';
   db.matches.push({date,scores,season});
+  closeSheet('confirmSheet');
   renderAll();
   resetScores();
   const ok=await pushCloud();
