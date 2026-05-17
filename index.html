@@ -896,7 +896,33 @@ function renderConfirmSummary(){
     const sign=v>0?'+':'';
     return`<div style="display:flex;justify-content:space-between;padding:6px 10px;background:var(--surface2);border-radius:8px;margin-bottom:4px"><span>${n}</span><span class="score-val ${cls}" style="font-family:'JetBrains Mono',monospace;font-weight:700">${sign}${v}</span></div>`;
   }).join('');
-  box.innerHTML=head+`<div style="max-height:30vh;overflow-y:auto">${rows}</div>`;
+
+  // 校验区：总和 / 最高 / 最低 / 分差 — 方便核对是否有人输错
+  const sum=entries.reduce((s,[,v])=>s+v,0);
+  const max=entries[0];                          // 已按降序排
+  const min=entries[entries.length-1];
+  const spread=max[1]-min[1];
+  const sumCls=sum===0?'':sum>0?'pos':'neg';
+  const sumSign=sum>0?'+':'';
+  const sumBorder=sum===0?'var(--border)':Math.abs(sum)<=10?'var(--accent)':'var(--red)';
+  const sumHint=sum===0
+    ?'<span style="color:var(--green)">✓ 总和为 0</span>'
+    :Math.abs(sum)<=10
+      ?`<span style="color:var(--accent)">总和 ${sumSign}${sum}（误差较小）</span>`
+      :`<span style="color:var(--red)">⚠️ 总和 ${sumSign}${sum}，请核对有无输错</span>`;
+  const check=`
+    <div style="margin-top:10px;padding:12px;background:var(--bg);border:1px solid ${sumBorder};border-radius:10px">
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">校验</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px">
+        <div style="display:flex;justify-content:space-between;padding:6px 8px;background:var(--surface2);border-radius:6px"><span style="color:var(--muted)">总和</span><span class="score-val ${sumCls}" style="font-family:'JetBrains Mono',monospace;font-weight:700">${sumSign}${sum}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:6px 8px;background:var(--surface2);border-radius:6px"><span style="color:var(--muted)">分差</span><span style="font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--accent)">${spread}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:6px 8px;background:var(--surface2);border-radius:6px"><span style="color:var(--muted)">最高</span><span style="font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--green)">${max[0]} ${max[1]>0?'+':''}${max[1]}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:6px 8px;background:var(--surface2);border-radius:6px"><span style="color:var(--muted)">最低</span><span style="font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--red)">${min[0]} ${min[1]>0?'+':''}${min[1]}</span></div>
+      </div>
+      <div style="margin-top:8px;font-size:12px;text-align:center">${sumHint}</div>
+    </div>`;
+
+  box.innerHTML=head+`<div style="max-height:22vh;overflow-y:auto">${rows}</div>`+check;
 }
 async function confirmSave(){
   const date=document.getElementById('confirmDate').value;
