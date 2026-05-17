@@ -505,6 +505,7 @@ td.pos{color:var(--green)}td.neg{color:var(--red)}
 <script>
 // ═══════════════════════════ CONFIG ═══════════════════════════
 const LS_CFG = 'jifen_cfg_v3';
+const LS_DATA = 'jifen_data_v1';
 let cfg = {apiKey:'',binId:'',demo:false};
 let db = {matches:[],players:[],hidden:[],seasons:['S5'],currentSeason:'S5'};
 let tableMode = 'cumulative';
@@ -517,7 +518,36 @@ let viewSeason = null;
 function loadCfg(){ try{const s=localStorage.getItem(LS_CFG);if(s)cfg=JSON.parse(s);}catch{} }
 function saveCfg(){ localStorage.setItem(LS_CFG,JSON.stringify(cfg)); }
 
+// ── 本地数据备份（防丢失兜底）──
+function loadLocal(){
+  try{const s=localStorage.getItem(LS_DATA);if(s)return JSON.parse(s);}catch{}
+  return null;
+}
+function saveLocal(dirty){
+  try{
+    localStorage.setItem(LS_DATA,JSON.stringify({
+      db,
+      lastModified:Date.now(),
+      pendingPush:!!dirty
+    }));
+  }catch(e){console.warn('本地备份失败',e);}
+}
+function loadLocalData(){
+  const local=loadLocal();
+  if(local&&local.db){
+    db={
+      matches:local.db.matches||[],
+      players:local.db.players||[],
+      hidden:local.db.hidden||[],
+      seasons:local.db.seasons||['S5'],
+      currentSeason:local.db.currentSeason||'S5'
+    };
+    migrateData();
+  }
+}
+
 loadCfg();
+if(!cfg.demo) loadLocalData();
 if(cfg.apiKey||cfg.demo){ boot(); }
 
 // ═══════════════════════════ SETUP ═══════════════════════════
@@ -551,8 +581,23 @@ function syncUI(state,label){
   d.className='sync-dot '+state;
   l.textContent=label;
 }
+function dbBody(){
+  return JSON.stringify({
+    matches:db.matches,players:db.players,
+    hidden:db.hidden||[],seasons:db.seasons||['S5'],
+    currentSeason:db.currentSeason||'S5'
+  });
+}
 async function loadCloud(){
   if(cfg.demo){syncUI('','演示');return;}
+
+  // 立即用本地备份渲染（即使没网也能看到数据，仅非 demo 模式）
+  const local=loadLocal();
+  if(local&&local.db){
+    db={matches:local.db.matches||[],players:local.db.players||[],hidden:local.db.hidden||[],seasons:local.db.seasons||['S5'],currentSeason:local.db.currentSeason||'S5'};
+    migrateData();renderAll();
+  }
+
   syncUI('syncing','同步中…');
   try{
     if(!cfg.binId){
@@ -564,30 +609,72 @@ async function loadCloud(){
       const j=await res.json();
       if(j.metadata?.id){
         cfg.binId=j.metadata.id;saveCfg();
-        db={matches:[],players:[],hidden:[],seasons:['S5'],currentSeason:'S5'};
-        migrateData();syncUI('ok',now());renderAll();
+        if(!local) db={matches:[],players:[],hidden:[],seasons:['S5'],currentSeason:'S5'};
+        migrateData();syncUI('ok',now());renderAll();saveLocal(false);
       }else{syncUI('err','创建失败');showToast('❌ 检查 API Key');}
       return;
     }
     const res=await fetch(`https://api.jsonbin.io/v3/b/${cfg.binId}/latest`,{headers:{'X-Master-Key':cfg.apiKey}});
     const j=await res.json();
-    if(j.record){db={matches:j.record.matches||[],players:j.record.players||[],hidden:j.record.hidden||[],seasons:j.record.seasons||['S5'],currentSeason:j.record.currentSeason||'S5'};migrateData();syncUI('ok',now());renderAll();}
-    else syncUI('err','读取失败');
+    if(!j.record){syncUI('err','读取失败');return;}
+
+    const cloudDb={matches:j.record.matches||[],players:j.record.players||[],hidden:j.record.hidden||[],seasons:j.record.seasons||['S5'],currentSeason:j.record.currentSeason||'S5'};
+
+    // 本地有未推上去的数据 → 需要判断是否真的有冲突
+    if(local&&local.pendingPush){
+      const localBody=JSON.stringify({matches:local.db.matches||[],players:local.db.players||[],hidden:local.db.hidden||[],seasons:local.db.seasons||['S5'],currentSeason:local.db.currentSeason||'S5'});
+      const cloudBody=JSON.stringify(cloudDb);
+      if(localBody===cloudBody){
+        // 上次其实推成功了，只是没标记。直接清干净。
+        db=cloudDb;migrateData();syncUI('ok',now());renderAll();saveLocal(false);
+        return;
+      }
+      // 真冲突 — 询问用户
+      const localCnt=(local.db.matches||[]).length;
+      const cloudCnt=cloudDb.matches.length;
+      const tm=new Date(local.lastModified).toLocaleString('zh-CN');
+      const useLocal=confirm(
+        '检测到本地有未同步数据：\n\n'+
+        '本地：'+localCnt+' 场比赛（'+tm+'）\n'+
+        '云端：'+cloudCnt+' 场比赛\n\n'+
+        '【确定】上传本地版本到云端（推荐）\n'+
+        '【取消】丢弃本地，使用云端版本'
+      );
+      if(useLocal){
+        // 当前 db 已是本地版本，直接推
+        const ok=await pushCloud();
+        if(ok)showToast('✅ 本地数据已上传到云端');
+        else showToast('⚠️ 上传失败，数据仍在本地，稍后再试');
+        return;
+      }
+    }
+
+    // 采用云端版本
+    db=cloudDb;migrateData();syncUI('ok',now());renderAll();saveLocal(false);
   }catch{syncUI('err','网络错误');}
 }
 async function pushCloud(){
-  if(cfg.demo||!cfg.binId||!cfg.apiKey)return;
+  if(cfg.demo) return true;  // demo 模式不持久化
+  // 第一步：立即写本地备份（同步，不会被关页面打断）
+  saveLocal(true);
+  if(!cfg.binId||!cfg.apiKey)return false;
   syncUI('syncing','保存中…');
   try{
+    const body=dbBody();
     const res=await fetch(`https://api.jsonbin.io/v3/b/${cfg.binId}`,{
       method:'PUT',
       headers:{'Content-Type':'application/json','X-Master-Key':cfg.apiKey},
-      body:JSON.stringify({matches:db.matches,players:db.players,hidden:db.hidden||[],seasons:db.seasons||['S5'],currentSeason:db.currentSeason||'S5'})
+      body
     });
     const j=await res.json();
-    if(j.record)syncUI('ok',now());
-    else syncUI('err','保存失败');
-  }catch{syncUI('err','网络错误');}
+    if(j.record){
+      syncUI('ok',now());
+      // 若推送期间 db 又被改了，则保持 dirty=true，等下次推送
+      saveLocal(dbBody()!==body);
+      return true;
+    }
+    syncUI('err','保存失败');return false;
+  }catch{syncUI('err','网络错误');return false;}
 }
 function forcSync(){loadCloud();}
 function now(){return new Date().toLocaleTimeString('zh',{hour:'2-digit',minute:'2-digit'});}
@@ -742,18 +829,18 @@ function collectScores(container){
   return scores;
 }
 
-function saveMatch(){
+async function saveMatch(){
   const date=document.getElementById('entryDate').value;
   if(!date){showToast('⚠️ 请选择日期');return;}
   if(!roster().length){showToast('⚠️ 请先添加选手');return;}
   const scores=collectScores(document.getElementById('scoreList'));
   const season=db.currentSeason||'S5';
   db.matches.push({date,scores,season});
-  pushCloud();
   renderAll();
-  showToast(`✅ ${date} 已存入 ${season}`);
-  // auto clear
   resetScores();
+  const ok=await pushCloud();
+  if(ok) showToast(`✅ ${date} 已存入 ${season}`);
+  else showToast(`⚠️ ${date} 已暂存本地，云端未同步`);
 }
 
 // ═══════════════════════════ HISTORY ═══════════════════════════
@@ -787,16 +874,23 @@ function openEdit(idx){
   buildScoreRows(document.getElementById('editScoreList'),m.scores||{});
   openSheet('editSheet');
 }
-function saveEdit(){
+async function saveEdit(){
   if(editingIdx<0)return;
   const date=document.getElementById('editDate').value;
   if(!date){showToast('⚠️ 请选择日期');return;}
-  db.matches[editingIdx]={date,scores:collectScores(document.getElementById('editScoreList'))};
-  pushCloud();closeSheet('editSheet');renderAll();renderHistory();showToast('✅ 修改已保存');
+  const old=db.matches[editingIdx];
+  db.matches[editingIdx]={date,scores:collectScores(document.getElementById('editScoreList')),season:old&&old.season||'S5'};
+  closeSheet('editSheet');renderAll();renderHistory();
+  const ok=await pushCloud();
+  if(ok) showToast('✅ 修改已保存');
+  else showToast('⚠️ 修改已暂存本地，云端未同步');
 }
-function delMatch(idx){
+async function delMatch(idx){
   if(!confirm(`确定删除 ${db.matches[idx].date} 的记录？`))return;
-  db.matches.splice(idx,1);pushCloud();renderAll();renderHistory();showToast('🗑️ 已删除');
+  db.matches.splice(idx,1);renderAll();renderHistory();
+  const ok=await pushCloud();
+  if(ok) showToast('🗑️ 已删除');
+  else showToast('⚠️ 已删除（本地），云端未同步');
 }
 
 // ═══════════════════════════ TABLE ═══════════════════════════
