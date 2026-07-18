@@ -1263,13 +1263,36 @@ function computeRecords(season){
     const variance=vs.reduce((s,v)=>s+(v-avg)*(v-avg),0)/vs.length;
     const sd=Math.sqrt(variance);
     const wins=vs.filter(v=>v>0).length;
-    return{p,avg,sd,wr:wins/vs.length,n:vs.length};
+    return{p,avg,sd,wr:wins/vs.length,n:vs.length,wins};
   }).filter(Boolean);
   if(stats.length){
     r.stable=topTiedStats(stats,'sd',true);
     r.volatile=topTiedStats(stats,'sd',false);
     r.chill=topTiedStats(stats,'avg',true,true);
     r.shark=topTiedStats(stats,'wr',false);
+    r.rich=topTiedStats(stats,'avg',false);
+    r.poor=topTiedStats(stats,'avg',true);
+    r.fish=topTiedStats(stats,'wr',true);
+    r.champ=topTiedStats(stats,'wins',false);
+  }
+  // 触底反弹：累计谷底之后的最大回升
+  const reboundMap={};
+  elig.forEach(p=>{
+    let c=0,curMin=Infinity,reb=0;
+    ms.forEach(m=>{c+=parseInt((m.scores||{})[p]||0);if(c<curMin)curMin=c;if(c-curMin>reb)reb=c-curMin;});
+    reboundMap[p]=reb;
+  });
+  r.rebound=findTopTied(reboundMap,0);
+  // 后程发力：后半赛季均分 − 前半赛季均分（需前后都出勤）
+  if(ms.length>=2){
+    const mid=Math.floor(ms.length/2),firstMs=ms.slice(0,mid),lastMs=ms.slice(mid),laterMap={};
+    elig.forEach(p=>{
+      const f=firstMs.map(m=>parseInt((m.scores||{})[p]||0)).filter(v=>v!==0);
+      const s=lastMs.map(m=>parseInt((m.scores||{})[p]||0)).filter(v=>v!==0);
+      if(!f.length||!s.length)return;
+      laterMap[p]=s.reduce((a,b)=>a+b,0)/s.length-f.reduce((a,b)=>a+b,0)/f.length;
+    });
+    if(Object.keys(laterMap).length)r.later=findTopTied(laterMap,-Infinity);
   }
   return r;
 }
@@ -1306,7 +1329,6 @@ function renderRecords(){
     {ic:'💸',l:'最低分次数最多',v:r.mostBot.v+'次',m:fmtPS(r.mostBot.ps),neg:r.mostBot.v>0},
     {ic:'🔥',l:'最长连胜',v:r.lw.v+'场',m:fmtPS(r.lw.ps)},
     {ic:'🥶',l:'最长连败',v:r.ll.v+'场',m:fmtPS(r.ll.ps),neg:r.ll.v>0},
-    {ic:'🛡️',l:'最长不输',v:r.lu.v+'场',m:fmtPS(r.lu.ps)},
     {ic:'📈',l:'赛季巅峰',v:r.peak.v>-Infinity?fmtScore(r.peak.v):'—',m:fmtPS(r.peak.ps)},
     {ic:'📉',l:'赛季谷底',v:r.trough.v<Infinity?fmtScore(r.trough.v):'—',m:fmtPS(r.trough.ps),neg:r.trough.v<0},
     {ic:'🎯',l:'出勤之王',v:r.mostM.v+'场',m:fmtPS(r.mostM.ps)},
@@ -1315,6 +1337,12 @@ function renderRecords(){
   if(r.volatile)items.push({ic:'🎢',l:'最起伏',v:'σ '+r.volatile.v.toFixed(1),m:fmtPS(r.volatile.ps)});
   if(r.chill)items.push({ic:'😴',l:'最爱划水',v:'平均 '+r.chill.v.toFixed(1),m:fmtPS(r.chill.ps)});
   if(r.shark)items.push({ic:'🦈',l:'大鲨鱼',v:'赢率 '+(r.shark.v*100).toFixed(0)+'%',m:fmtPS(r.shark.ps)});
+  if(r.rich)items.push({ic:'💰',l:'人肉印钞机',v:'场均 '+fmtScore(+r.rich.v.toFixed(1)),m:fmtPS(r.rich.ps)});
+  if(r.poor)items.push({ic:'😭',l:'大冤种',v:'场均 '+fmtScore(+r.poor.v.toFixed(1)),m:fmtPS(r.poor.ps),neg:r.poor.v<0});
+  if(r.champ&&r.champ.v>0)items.push({ic:'🎖️',l:'常胜将军',v:r.champ.v+'胜',m:fmtPS(r.champ.ps)});
+  if(r.fish)items.push({ic:'🐢',l:'万年陪跑',v:'赢率 '+(r.fish.v*100).toFixed(0)+'%',m:fmtPS(r.fish.ps),neg:true});
+  if(r.rebound&&r.rebound.v>0)items.push({ic:'🔄',l:'触底反弹',v:'+'+r.rebound.v,m:fmtPS(r.rebound.ps)});
+  if(r.later&&r.later.ps.length)items.push({ic:'📊',l:'后程发力',v:fmtScore(+r.later.v.toFixed(1)),m:fmtPS(r.later.ps),neg:r.later.v<0});
   c.innerHTML=note+items.map(it=>`<div class="rec-item"><div class="rec-icon">${it.ic}</div><div class="rec-label">${it.l}</div><div class="rec-value ${it.neg?'neg':''}">${it.v}</div><div class="rec-meta">${it.m}</div></div>`).join('');
 }
 function renderHistorical(){
@@ -1449,6 +1477,7 @@ function checkViewer(){
 async function launchViewer(binId,apiKey){
   document.documentElement.style.cssText='height:auto;overflow:visible;overflow-y:auto';
   let viewerChart=null;
+  let viewerTableMode='cumulative';
   function vColor(i,total){const hue=Math.round((i*360/Math.max(total,1))%360);return`hsl(${hue},72%,62%)`;}
   document.body.innerHTML=`
   <style>
@@ -1525,12 +1554,19 @@ async function launchViewer(binId,apiKey){
       <div class="chart-box"><canvas id="trendChart"></canvas></div>
     </div>
     <div class="card" id="tableCard" style="display:none">
-      <h2>每场后累计积分</h2>
-      <div class="tbl-wrap"><table id="trendTable"></table></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <h2 id="tableTitle" style="margin:0">每场后累计积分</h2>
+        <button class="zbtn" id="vTblModeBtn" onclick="toggleViewerTblMode()">当前：每场后累计</button>
+      </div>
+      <div class="tbl-wrap" style="margin-top:12px"><table id="trendTable"></table></div>
     </div>
     <div class="card" id="recordsCardV" style="display:none">
       <h2>本赛季记录</h2>
       <div id="vRecords" class="vrecords"></div>
+    </div>
+    <div class="card" id="historyCardV" style="display:none">
+      <h2>历届赛季冠亚季</h2>
+      <div id="vHistory"></div>
     </div>
     <div class="footer" id="foot"></div>
   </div>
@@ -1585,6 +1621,33 @@ async function launchViewer(binId,apiKey){
     document.getElementById('foot').textContent=`${sea} · ${sorted.length}名选手 · ${ms.length}场比赛 · 30秒自动刷新`;
     renderTrend(players,ms,new Set());
     renderViewerRecords(players,ms);
+    renderViewerHistory();
+  }
+
+  function renderViewerHistory(){
+    const card=document.getElementById('historyCardV'),box=document.getElementById('vHistory');
+    if(!lastData||!lastData.seasons||!lastData.seasons.length){card.style.display='none';return;}
+    const hid=new Set(lastData.hidden||[]);
+    const rows=lastData.seasons.map(s=>{
+      const sm=(lastData.matches||[]).filter(m=>(m.season||'S5')===s);
+      const names=new Set();
+      sm.forEach(m=>Object.keys(m.scores||{}).forEach(n=>{if(!hid.has(n))names.add(n);}));
+      const sp=[...names];
+      if(!sm.length||!sp.length)return null;
+      const tot={};sp.forEach(p=>tot[p]=0);
+      sm.forEach(m=>sp.forEach(p=>{tot[p]+=parseInt(m.scores[p]||0);}));
+      const ranked=Object.entries(tot).sort((a,b)=>b[1]-a[1]);
+      return{season:s,first:ranked[0],second:ranked[1],third:ranked[2],n:sm.length};
+    }).filter(Boolean);
+    if(!rows.length){card.style.display='none';return;}
+    card.style.display='block';
+    const fmt=v=>(v>0?'+':'')+v;
+    const med=(e,m)=>e?`<span style="margin-right:10px;white-space:nowrap">${m} ${e[0]} <span style="color:#6868a0;font-size:12px">(${fmt(e[1])})</span></span>`:'';
+    box.innerHTML=rows.reverse().map(({season,first,second,third,n})=>
+      `<div style="padding:10px 0;border-bottom:1px solid #2e2e3e">
+        <div style="color:#6868a0;font-size:12px;margin-bottom:6px">${season} · ${n}场</div>
+        <div style="font-size:14px;line-height:1.9">${med(first,'🥇')}${med(second,'🥈')}${med(third,'🥉')}</div>
+      </div>`).join('');
   }
 
   function renderTrend(allPlayers,ms,hid){
@@ -1611,14 +1674,28 @@ async function launchViewer(binId,apiKey){
     if(viewerChart)viewerChart.destroy();
     viewerChart=new Chart(document.getElementById('trendChart'),{type:'line',data:{labels:ms.map(m=>m.date.slice(5)),datasets},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'nearest',intersect:false},plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6868a0',font:{size:11}},grid:{color:'#2e2e3e'}},y:{ticks:{color:'#6868a0',font:{size:11}},grid:{color:'#2e2e3e'}}}}});
 
+    renderViewerTable();
+  }
+
+  function renderViewerTable(){
+    if(!lastSnapshot)return;
+    const{visible,ms}=lastSnapshot;
     const tot={};visible.forEach(n=>tot[n]=0);
     const rows=ms.map(m=>{
       visible.forEach(n=>{tot[n]+=parseInt(m.scores[n]||0);});
-      const cells=visible.map(n=>{const v=tot[n];return`<td class="${v>0?'pos':v<0?'neg':''}">${v>0?'+':''}${v}</td>`;}).join('');
+      const cells=visible.map(n=>{const v=viewerTableMode==='cumulative'?tot[n]:parseInt(m.scores[n]||0);return`<td class="${v>0?'pos':v<0?'neg':''}">${v>0?'+':''}${v}</td>`;}).join('');
       return`<tr><td>${m.date}</td>${cells}</tr>`;
     }).join('');
     document.getElementById('trendTable').innerHTML=`<thead><tr><th>日期</th>${visible.map(n=>`<th>${n}</th>`).join('')}</tr></thead><tbody>${rows}</tbody>`;
   }
+
+  function toggleViewerTblMode(){
+    viewerTableMode=viewerTableMode==='cumulative'?'points':'cumulative';
+    document.getElementById('vTblModeBtn').textContent='当前：'+(viewerTableMode==='cumulative'?'每场后累计':'每场积分');
+    document.getElementById('tableTitle').textContent=viewerTableMode==='cumulative'?'每场后累计积分':'每场积分';
+    renderViewerTable();
+  }
+  window.toggleViewerTblMode=toggleViewerTblMode;
   window.fetchAndShow=fetchAndShow;
   document.body.style.cssText='height:auto;overflow:visible;overflow-y:auto;overscroll-behavior:auto;background:#0f0f13;color:#eeeef5;font-family:Noto Sans SC,sans-serif;min-height:100vh;margin:0';
 
@@ -1654,9 +1731,16 @@ async function launchViewer(binId,apiKey){
     const topCount={},botCount={};
     ms.forEach(m=>{const ents=Object.entries(m.scores||{}).filter(([n,vRaw])=>eligSet.has(n)&&parseInt(vRaw||0)!==0);if(!ents.length)return;const vals=ents.map(([,v])=>parseInt(v||0));const mx=Math.max(...vals),mn=Math.min(...vals);ents.forEach(([n,vRaw])=>{const v=parseInt(vRaw||0);if(v===mx)topCount[n]=(topCount[n]||0)+1;if(v===mn)botCount[n]=(botCount[n]||0)+1;});});
     const mostTop=findTop(topCount,0),mostBot=findTop(botCount,0);
-    const stats=elig.map(p=>{const vs=ms.filter(m=>parseInt((m.scores||{})[p]||0)!==0).map(m=>parseInt(m.scores[p]||0));if(!vs.length)return null;const sum=vs.reduce((a,b)=>a+b,0),avg=sum/vs.length;const variance=vs.reduce((s,v)=>s+(v-avg)*(v-avg),0)/vs.length;const sd=Math.sqrt(variance);const wins=vs.filter(v=>v>0).length;return{p,avg,sd,wr:wins/vs.length};}).filter(Boolean);
-    let stable,volatile,chill,shark;
-    if(stats.length){stable=topStats(stats,'sd',true);volatile=topStats(stats,'sd',false);chill=topStats(stats,'avg',true,true);shark=topStats(stats,'wr',false);}
+    const stats=elig.map(p=>{const vs=ms.filter(m=>parseInt((m.scores||{})[p]||0)!==0).map(m=>parseInt(m.scores[p]||0));if(!vs.length)return null;const sum=vs.reduce((a,b)=>a+b,0),avg=sum/vs.length;const variance=vs.reduce((s,v)=>s+(v-avg)*(v-avg),0)/vs.length;const sd=Math.sqrt(variance);const wins=vs.filter(v=>v>0).length;return{p,avg,sd,wr:wins/vs.length,wins};}).filter(Boolean);
+    let stable,volatile,chill,shark,rich,poor,fish,champ;
+    if(stats.length){stable=topStats(stats,'sd',true);volatile=topStats(stats,'sd',false);chill=topStats(stats,'avg',true,true);shark=topStats(stats,'wr',false);rich=topStats(stats,'avg',false);poor=topStats(stats,'avg',true);fish=topStats(stats,'wr',true);champ=topStats(stats,'wins',false);}
+    // 触底反弹：累计谷底之后的最大回升
+    const reboundMap={};
+    elig.forEach(p=>{let c=0,curMin=Infinity,reb=0;ms.forEach(m=>{c+=parseInt((m.scores||{})[p]||0);if(c<curMin)curMin=c;if(c-curMin>reb)reb=c-curMin;});reboundMap[p]=reb;});
+    const rebound=findTop(reboundMap,0);
+    // 后程发力：后半赛季均分 − 前半赛季均分（需前后都出勤）
+    let later=null;
+    if(ms.length>=2){const mid=Math.floor(ms.length/2),firstMs=ms.slice(0,mid),lastMs=ms.slice(mid),laterMap={};elig.forEach(p=>{const f=firstMs.map(m=>parseInt((m.scores||{})[p]||0)).filter(v=>v!==0);const s=lastMs.map(m=>parseInt((m.scores||{})[p]||0)).filter(v=>v!==0);if(!f.length||!s.length)return;laterMap[p]=s.reduce((a,b)=>a+b,0)/s.length-f.reduce((a,b)=>a+b,0)/f.length;});if(Object.keys(laterMap).length)later=findTop(laterMap,-Infinity);}
     const items=[
       {ic:'🏆',l:'单场最高',v:highV>-Infinity?fmt(highV):'—',m:fmtEntries(highEntries)},
       {ic:'💀',l:'单场最低',v:lowV<Infinity?fmt(lowV):'—',m:fmtEntries(lowEntries),neg:lowV<0},
@@ -1665,7 +1749,6 @@ async function launchViewer(binId,apiKey){
       {ic:'💸',l:'最低分次数最多',v:mostBot.v+'次',m:fmtPS(mostBot.ps),neg:mostBot.v>0},
       {ic:'🔥',l:'最长连胜',v:lw.v+'场',m:fmtPS(lw.ps)},
       {ic:'🥶',l:'最长连败',v:ll.v+'场',m:fmtPS(ll.ps),neg:ll.v>0},
-      {ic:'🛡️',l:'最长不输',v:lu.v+'场',m:fmtPS(lu.ps)},
       {ic:'📈',l:'赛季巅峰',v:peakV>-Infinity?fmt(peakV):'—',m:fmtPS(peakTied)},
       {ic:'📉',l:'赛季谷底',v:troughV<Infinity?fmt(troughV):'—',m:fmtPS(troughTied),neg:troughV<0},
       {ic:'🎯',l:'出勤之王',v:mostM.v+'场',m:fmtPS(mostM.ps)},
@@ -1674,6 +1757,12 @@ async function launchViewer(binId,apiKey){
     if(volatile)items.push({ic:'🎢',l:'最起伏',v:'σ '+volatile.v.toFixed(1),m:fmtPS(volatile.ps)});
     if(chill)items.push({ic:'😴',l:'最爱划水',v:'平均 '+chill.v.toFixed(1),m:fmtPS(chill.ps)});
     if(shark)items.push({ic:'🦈',l:'大鲨鱼',v:'赢率 '+(shark.v*100).toFixed(0)+'%',m:fmtPS(shark.ps)});
+    if(rich)items.push({ic:'💰',l:'人肉印钞机',v:'场均 '+fmt(+rich.v.toFixed(1)),m:fmtPS(rich.ps)});
+    if(poor)items.push({ic:'😭',l:'大冤种',v:'场均 '+fmt(+poor.v.toFixed(1)),m:fmtPS(poor.ps),neg:poor.v<0});
+    if(champ&&champ.v>0)items.push({ic:'🎖️',l:'常胜将军',v:champ.v+'胜',m:fmtPS(champ.ps)});
+    if(fish)items.push({ic:'🐢',l:'万年陪跑',v:'赢率 '+(fish.v*100).toFixed(0)+'%',m:fmtPS(fish.ps),neg:true});
+    if(rebound&&rebound.v>0)items.push({ic:'🔄',l:'触底反弹',v:'+'+rebound.v,m:fmtPS(rebound.ps)});
+    if(later&&later.ps.length)items.push({ic:'📊',l:'后程发力',v:fmt(+later.v.toFixed(1)),m:fmtPS(later.ps),neg:later.v<0});
     box.innerHTML=note+items.map(it=>`<div class="vrec"><div class="vrec-icon">${it.ic}</div><div class="vrec-label">${it.l}</div><div class="vrec-value ${it.neg?'neg':''}">${it.v}</div><div class="vrec-meta">${it.m}</div></div>`).join('');
   }
   let zoomInst=null,lastSnapshot=null;
