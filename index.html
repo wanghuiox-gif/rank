@@ -1275,14 +1275,17 @@ function computeRecords(season){
     r.fish=topTiedStats(stats,'wr',true);
     r.champ=topTiedStats(stats,'wins',false);
   }
-  // 触底反弹：累计谷底之后的最大回升
-  const reboundMap={};
-  elig.forEach(p=>{
-    let c=0,curMin=Infinity,reb=0;
-    ms.forEach(m=>{c+=parseInt((m.scores||{})[p]||0);if(c<curMin)curMin=c;if(c-curMin>reb)reb=c-curMin;});
-    reboundMap[p]=reb;
+  // 触底反弹：出勤≥5 且 当过单场倒数第一 且 历史谷底≤-5000 且 最终累计>0，取反弹幅度(终值−历史谷底)最大
+  const lastEver={};
+  ms.forEach(m=>{const ents=Object.entries(m.scores||{}).filter(([n,v])=>parseInt(v||0)!==0);if(!ents.length)return;const mn=Math.min(...ents.map(([,v])=>parseInt(v||0)));ents.forEach(([n,v])=>{if(parseInt(v||0)===mn)lastEver[n]=true;});});
+  const reboundMap={},reboundTrough={};
+  players.forEach(p=>{
+    if(hid.has(p)||att[p]<5||!lastEver[p])return;
+    let c=0,tr=Infinity;ms.forEach(m=>{c+=parseInt((m.scores||{})[p]||0);if(c<tr)tr=c;});
+    if(c>0&&tr<=-5000){reboundMap[p]=c-tr;reboundTrough[p]=tr;}
   });
-  r.rebound=findTopTied(reboundMap,0);
+  r.rebound=Object.keys(reboundMap).length?findTopTied(reboundMap,-Infinity):null;
+  if(r.rebound)r.rebound.trough=reboundTrough;
   // 后程发力：后半赛季均分 − 前半赛季均分（需前后都出勤）
   if(ms.length>=2){
     const mid=Math.floor(ms.length/2),firstMs=ms.slice(0,mid),lastMs=ms.slice(mid),laterMap={};
@@ -1341,7 +1344,7 @@ function renderRecords(){
   if(r.poor)items.push({ic:'😭',l:'大冤种',v:'场均 '+fmtScore(+r.poor.v.toFixed(1)),m:fmtPS(r.poor.ps),neg:r.poor.v<0});
   if(r.champ&&r.champ.v>0)items.push({ic:'🎖️',l:'常胜将军',v:r.champ.v+'胜',m:fmtPS(r.champ.ps)});
   if(r.fish)items.push({ic:'🐢',l:'万年陪跑',v:'赢率 '+(r.fish.v*100).toFixed(0)+'%',m:fmtPS(r.fish.ps),neg:true});
-  if(r.rebound&&r.rebound.v>0)items.push({ic:'🔄',l:'触底反弹',v:'+'+r.rebound.v,m:fmtPS(r.rebound.ps)});
+  if(r.rebound&&r.rebound.ps.length){const rb=r.rebound,rl=rb.ps.slice(0,3).map(p=>`${p}·谷底${fmtScore(rb.trough[p])}`);if(rb.ps.length>3)rl.push(`+${rb.ps.length-3}`);items.push({ic:'🔄',l:'触底反弹',v:'+'+rb.v,m:rl.join(' / ')});}
   if(r.later&&r.later.ps.length)items.push({ic:'📊',l:'后程发力',v:fmtScore(+r.later.v.toFixed(1)),m:fmtPS(r.later.ps),neg:r.later.v<0});
   c.innerHTML=note+items.map(it=>`<div class="rec-item"><div class="rec-icon">${it.ic}</div><div class="rec-label">${it.l}</div><div class="rec-value ${it.neg?'neg':''}">${it.v}</div><div class="rec-meta">${it.m}</div></div>`).join('');
 }
@@ -1734,10 +1737,13 @@ async function launchViewer(binId,apiKey){
     const stats=elig.map(p=>{const vs=ms.filter(m=>parseInt((m.scores||{})[p]||0)!==0).map(m=>parseInt(m.scores[p]||0));if(!vs.length)return null;const sum=vs.reduce((a,b)=>a+b,0),avg=sum/vs.length;const variance=vs.reduce((s,v)=>s+(v-avg)*(v-avg),0)/vs.length;const sd=Math.sqrt(variance);const wins=vs.filter(v=>v>0).length;return{p,avg,sd,wr:wins/vs.length,wins};}).filter(Boolean);
     let stable,volatile,chill,shark,rich,poor,fish,champ;
     if(stats.length){stable=topStats(stats,'sd',true);volatile=topStats(stats,'sd',false);chill=topStats(stats,'avg',true,true);shark=topStats(stats,'wr',false);rich=topStats(stats,'avg',false);poor=topStats(stats,'avg',true);fish=topStats(stats,'wr',true);champ=topStats(stats,'wins',false);}
-    // 触底反弹：累计谷底之后的最大回升
-    const reboundMap={};
-    elig.forEach(p=>{let c=0,curMin=Infinity,reb=0;ms.forEach(m=>{c+=parseInt((m.scores||{})[p]||0);if(c<curMin)curMin=c;if(c-curMin>reb)reb=c-curMin;});reboundMap[p]=reb;});
-    const rebound=findTop(reboundMap,0);
+    // 触底反弹：出勤≥5 且 当过单场倒数第一 且 历史谷底≤-5000 且 最终累计>0，取反弹幅度(终值−历史谷底)最大
+    const lastEver={};
+    ms.forEach(m=>{const ents=Object.entries(m.scores||{}).filter(([n,v])=>parseInt(v||0)!==0);if(!ents.length)return;const mn=Math.min(...ents.map(([,v])=>parseInt(v||0)));ents.forEach(([n,v])=>{if(parseInt(v||0)===mn)lastEver[n]=true;});});
+    const reboundMap={},reboundTrough={};
+    players.forEach(p=>{if((att[p]||0)<5||!lastEver[p])return;let c=0,tr=Infinity;ms.forEach(m=>{c+=parseInt((m.scores||{})[p]||0);if(c<tr)tr=c;});if(c>0&&tr<=-5000){reboundMap[p]=c-tr;reboundTrough[p]=tr;}});
+    const rebound=Object.keys(reboundMap).length?findTop(reboundMap,-Infinity):null;
+    if(rebound)rebound.trough=reboundTrough;
     // 后程发力：后半赛季均分 − 前半赛季均分（需前后都出勤）
     let later=null;
     if(ms.length>=2){const mid=Math.floor(ms.length/2),firstMs=ms.slice(0,mid),lastMs=ms.slice(mid),laterMap={};elig.forEach(p=>{const f=firstMs.map(m=>parseInt((m.scores||{})[p]||0)).filter(v=>v!==0);const s=lastMs.map(m=>parseInt((m.scores||{})[p]||0)).filter(v=>v!==0);if(!f.length||!s.length)return;laterMap[p]=s.reduce((a,b)=>a+b,0)/s.length-f.reduce((a,b)=>a+b,0)/f.length;});if(Object.keys(laterMap).length)later=findTop(laterMap,-Infinity);}
@@ -1761,7 +1767,7 @@ async function launchViewer(binId,apiKey){
     if(poor)items.push({ic:'😭',l:'大冤种',v:'场均 '+fmt(+poor.v.toFixed(1)),m:fmtPS(poor.ps),neg:poor.v<0});
     if(champ&&champ.v>0)items.push({ic:'🎖️',l:'常胜将军',v:champ.v+'胜',m:fmtPS(champ.ps)});
     if(fish)items.push({ic:'🐢',l:'万年陪跑',v:'赢率 '+(fish.v*100).toFixed(0)+'%',m:fmtPS(fish.ps),neg:true});
-    if(rebound&&rebound.v>0)items.push({ic:'🔄',l:'触底反弹',v:'+'+rebound.v,m:fmtPS(rebound.ps)});
+    if(rebound&&rebound.ps.length){const rl=rebound.ps.slice(0,3).map(p=>`${p}·谷底${fmt(rebound.trough[p])}`);if(rebound.ps.length>3)rl.push(`+${rebound.ps.length-3}`);items.push({ic:'🔄',l:'触底反弹',v:'+'+rebound.v,m:rl.join(' / ')});}
     if(later&&later.ps.length)items.push({ic:'📊',l:'后程发力',v:fmt(+later.v.toFixed(1)),m:fmtPS(later.ps),neg:later.v<0});
     box.innerHTML=note+items.map(it=>`<div class="vrec"><div class="vrec-icon">${it.ic}</div><div class="vrec-label">${it.l}</div><div class="vrec-value ${it.neg?'neg':''}">${it.v}</div><div class="vrec-meta">${it.m}</div></div>`).join('');
   }
