@@ -300,6 +300,7 @@ td.pos{color:var(--green)}td.neg{color:var(--red)}
       <div class="sync-dot" id="syncDot"></div>
       <span id="syncLabel">未连接</span>
     </div>
+    <button class="hdr-btn" id="summaryBtn" onclick="openSummary()" title="赛季总结" style="display:none">📊</button>
     <button class="hdr-btn" onclick="showQR()" title="分享查看端">📱</button>
     <button class="hdr-btn" onclick="goSetup()" title="设置">⚙️</button>
   </div>
@@ -744,6 +745,8 @@ function refreshSeasonChip(){
   if(el)el.textContent=cur===db.currentSeason?cur:`${cur} (历)`;
   const hint=document.getElementById('entrySeasonHint');
   if(hint)hint.textContent=db.currentSeason||'S5';
+  const sb=document.getElementById('summaryBtn');
+  if(sb)sb.style.display=summaryURL(cur)?'':'none';
 }
 function openSeasonSheet(){
   renderSeasonSheet();openSheet('seasonSheet');
@@ -1453,6 +1456,24 @@ function importJSON(e){
 }
 
 // ═══════════════════════════ QR / SHARE ═══════════════════════════
+// ═══════════════════════════ 赛季总结页 ═══════════════════════════
+// 每个赛季对应一个总结 HTML，文件放在 index.html 同一目录下即可（文件名用纯英文）。
+// 新赛季做完总结后，在这里加一行：S7:'s7-summary.html'
+const SEASON_SUMMARY={
+  S6:'s6-summary.html'
+};
+function summaryURL(season){
+  const f=SEASON_SUMMARY[season];
+  if(!f)return null;
+  const base=location.href.split('#')[0].split('?')[0].replace(/[^/]*$/,'');
+  return base+f;
+}
+function openSummary(){
+  const u=summaryURL(getViewSeason());
+  if(!u){showToast('本赛季还没有总结页');return;}
+  window.open(u,'_blank');
+}
+
 function showQR(){
   if(!cfg.binId&&!cfg.demo){showToast('⚠️ 请先完成云端配置');return;}
   if(cfg.demo){showToast('⚠️ 演示模式无法分享');return;}
@@ -1509,6 +1530,8 @@ async function launchViewer(binId,apiKey){
     button.rf-btn{background:#18181f;border:1px solid #2e2e3e;color:#6ab4ff;font-family:'Noto Sans SC',sans-serif;font-size:12px;padding:6px 14px;border-radius:8px;cursor:pointer}
     .card{background:#18181f;border:1px solid #2e2e3e;border-radius:16px;padding:16px;margin-top:24px}
     .card h2{margin-bottom:12px}
+    .sum-btn{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:20px;padding:16px;border-radius:16px;text-decoration:none;font-size:16px;font-weight:700;color:#0f0f13;background:linear-gradient(135deg,#f0c060,#6ab4ff);box-shadow:0 4px 16px rgba(240,192,96,.18)}
+    .sum-btn:active{opacity:.85}
     .chart-box{height:420px;position:relative}
     .chip-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
     .vchip{display:inline-flex;align-items:center;gap:6px;background:#22222e;border:1px solid #2e2e3e;border-radius:20px;padding:5px 11px 5px 9px;font-size:12px;color:#eeeef5;-webkit-user-select:none;user-select:none}
@@ -1548,6 +1571,7 @@ async function launchViewer(binId,apiKey){
   <div class="wrap">
     <h2>当前总积分排名</h2>
     <div class="list" id="list"><div class="loading"><div class="spin"></div><br><br>加载中…</div></div>
+    <a class="sum-btn" id="vSummaryBtn" href="#" target="_blank" rel="noopener" style="display:none">📊 <span id="vSummaryTxt">赛季总结</span> →</a>
     <div class="card" id="chartCard" style="display:none">
       <h2>累计积分趋势</h2>
       <div class="chip-row" id="chipRow"></div>
@@ -1622,6 +1646,11 @@ async function launchViewer(binId,apiKey){
     if(!sorted.length)html='<div class="loading">本赛季暂无数据</div>';
     document.getElementById('list').innerHTML=html;
     document.getElementById('foot').textContent=`${sea} · ${sorted.length}名选手 · ${ms.length}场比赛 · 30秒自动刷新`;
+    const sBtn=document.getElementById('vSummaryBtn'),sUrl=summaryURL(sea);
+    if(sBtn){
+      if(sUrl){sBtn.href=sUrl;document.getElementById('vSummaryTxt').textContent=`${sea} 赛季总结`;sBtn.style.display='flex';}
+      else sBtn.style.display='none';
+    }
     renderTrend(players,ms,new Set());
     renderViewerRecords(players,ms);
     renderViewerHistory();
