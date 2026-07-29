@@ -565,6 +565,25 @@ function loadLocalData(){
   }
 }
 
+// ═══════════════════════════ 赛季总结页 ═══════════════════════════
+// 每个赛季对应一个总结 HTML，文件放在 index.html 同一目录下即可（文件名用纯英文）。
+// 新赛季做完总结后，在这里加一行：S7:'s7-summary.html'
+// ⚠️ 必须声明在下面 boot() 之前 —— refreshSeasonChip() 在启动时就会读它。
+const SEASON_SUMMARY={
+  S6:'s6-summary.html'
+};
+function summaryURL(season){
+  const f=SEASON_SUMMARY[season];
+  if(!f)return null;
+  const base=location.href.split('#')[0].split('?')[0].replace(/[^/]*$/,'');
+  return base+f;
+}
+function openSummary(){
+  const u=summaryURL(getViewSeason());
+  if(!u){showToast('本赛季还没有总结页');return;}
+  window.open(u,'_blank');
+}
+
 loadCfg();
 if(!cfg.demo) loadLocalData();
 if(cfg.apiKey||cfg.demo){ boot(); }
@@ -1456,24 +1475,6 @@ function importJSON(e){
 }
 
 // ═══════════════════════════ QR / SHARE ═══════════════════════════
-// ═══════════════════════════ 赛季总结页 ═══════════════════════════
-// 每个赛季对应一个总结 HTML，文件放在 index.html 同一目录下即可（文件名用纯英文）。
-// 新赛季做完总结后，在这里加一行：S7:'s7-summary.html'
-const SEASON_SUMMARY={
-  S6:'s6-summary.html'
-};
-function summaryURL(season){
-  const f=SEASON_SUMMARY[season];
-  if(!f)return null;
-  const base=location.href.split('#')[0].split('?')[0].replace(/[^/]*$/,'');
-  return base+f;
-}
-function openSummary(){
-  const u=summaryURL(getViewSeason());
-  if(!u){showToast('本赛季还没有总结页');return;}
-  window.open(u,'_blank');
-}
-
 function showQR(){
   if(!cfg.binId&&!cfg.demo){showToast('⚠️ 请先完成云端配置');return;}
   if(cfg.demo){showToast('⚠️ 演示模式无法分享');return;}
