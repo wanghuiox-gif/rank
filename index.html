@@ -158,6 +158,33 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans SC',sans-seri
 }
 .score-val.pos{color:var(--green)}.score-val.neg{color:var(--red)}
 
+/* ── DETAIL ENTRY (手数/筹码记账) ── */
+.mode-seg{display:flex;gap:6px;background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:4px}
+.mode-btn{flex:1;background:none;border:none;color:var(--muted);font-family:inherit;font-size:13px;padding:9px;border-radius:9px;cursor:pointer;transition:background .15s,color .15s}
+.mode-btn.on{background:var(--surface2);color:var(--accent);font-weight:600}
+.pick-grid{display:flex;flex-wrap:wrap;gap:8px}
+.pick{background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:9px 15px;font-size:14px;cursor:pointer;-webkit-user-select:none;user-select:none;transition:opacity .15s,border-color .15s,color .15s;opacity:.4}
+.pick.on{opacity:1;border-color:var(--accent);color:var(--accent);font-weight:600}
+.hv-row{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);margin-bottom:12px}
+.hv-row input{width:76px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--accent);font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;text-align:center;padding:7px 0;outline:none;-webkit-appearance:none;appearance:none}
+.detail-sum{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px;padding:10px 8px;background:var(--bg);border:1px solid var(--border);border-radius:12px}
+.dsum-i{text-align:center;min-width:0}
+.dsum-l{font-size:10px;color:var(--muted);letter-spacing:.5px}
+.dsum-v{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;margin-top:2px;overflow:hidden;text-overflow:ellipsis}
+.dsum-v.pos{color:var(--green)}.dsum-v.neg{color:var(--red)}
+.drow{background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:10px 12px}
+.drow-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.drow-name{font-size:15px;font-weight:500}
+.drow-net{font-family:'JetBrains Mono',monospace;font-size:17px;font-weight:700;color:var(--muted)}
+.drow-net.pos{color:var(--green)}.drow-net.neg{color:var(--red)}
+.drow-fields{display:flex;gap:10px}
+.dfield{display:flex;align-items:center;flex:1;min-width:0}
+.dlab{font-size:11px;color:var(--muted);margin-right:6px;flex-shrink:0}
+.drow .score-dec,.drow .score-inc{width:34px;height:34px;font-size:22px}
+.dhands{width:44px;height:34px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;background:var(--bg);border:1px solid var(--border);border-left:none;border-right:none;color:var(--text);outline:none;-webkit-appearance:none;appearance:none;padding:0}
+.dchips{flex:1;min-width:0;height:34px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);outline:none;-webkit-appearance:none;appearance:none;padding:0}
+.hist-detail{font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-top:3px}
+
 /* ── LEADERBOARD ── */
 .rank-list{list-style:none;display:flex;flex-direction:column;gap:8px}
 .rank-item{
@@ -330,7 +357,44 @@ td.pos{color:var(--green)}td.neg{color:var(--red)}
           <input type="date" id="entryDate">
         </div>
       </div>
-      <div class="card">
+      <div class="card" style="padding:10px 14px">
+        <div class="mode-seg">
+          <button class="mode-btn on" id="modeBtnDetail" onclick="setEntryMode('detail')">🧮 明细记账</button>
+          <button class="mode-btn" id="modeBtnSimple" onclick="setEntryMode('simple')">✏️ 直接填分</button>
+        </div>
+      </div>
+
+      <!-- ① 选人 -->
+      <div class="card" id="entryStep1" style="display:none">
+        <div class="card-title">① 选择参赛人员 <span id="pickCount" style="color:var(--accent);font-size:10px;font-weight:400;text-transform:none;font-family:'JetBrains Mono',monospace"></span></div>
+        <div class="pick-grid" id="pickGrid"><div class="empty">请先在「选手」页添加选手</div></div>
+        <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" onclick="pickLast()">沿用上场</button>
+          <button class="btn btn-ghost btn-sm" onclick="pickAll()">全选</button>
+          <button class="btn btn-ghost btn-sm" onclick="pickNone()">清空</button>
+        </div>
+        <button class="btn btn-primary" style="margin-top:12px" onclick="startDetail()">开始记录 →</button>
+      </div>
+
+      <!-- ② 记账 -->
+      <div class="card" id="entryStep2" style="display:none">
+        <div class="card-title">② 本场记账</div>
+        <div class="hv-row">
+          <span>每手 =</span>
+          <input type="number" id="handValue" value="400" inputmode="numeric" step="1" oninput="recalcScope(document.getElementById('detailList'))">
+          <span>分</span>
+          <button class="btn btn-ghost btn-sm" style="margin-left:auto;width:auto;flex-shrink:0" onclick="backToPick()">← 改人员</button>
+        </div>
+        <div class="detail-sum" id="detailSum"></div>
+        <div class="score-list" id="detailList" data-hv="handValue" data-sum="detailSum"></div>
+        <div style="display:flex;gap:8px;margin-top:14px">
+          <button class="btn btn-ghost btn-sm" onclick="resetDetail()">清零</button>
+          <button class="btn btn-primary" style="flex:1" onclick="saveMatch()">保存本场 →</button>
+        </div>
+      </div>
+
+      <!-- 直接填分（旧模式） -->
+      <div class="card" id="entrySimple" style="display:none">
         <div class="card-title">本场积分 <span style="color:var(--muted);font-size:10px;font-weight:400;text-transform:none">（支持负分）</span></div>
         <div class="score-list" id="scoreList">
           <div class="empty">请先在「选手」页添加选手</div>
@@ -465,7 +529,13 @@ td.pos{color:var(--green)}td.neg{color:var(--red)}
     <div class="sheet-handle"></div>
     <div class="sheet-title">✏️ 编辑比赛记录</div>
     <div class="field"><label>比赛日期</label><input type="date" id="editDate"></div>
-    <div class="score-list" id="editScoreList" style="max-height:45vh"></div>
+    <div class="hv-row" id="editHVRow" style="display:none">
+      <span>每手 =</span>
+      <input type="number" id="editHandValue" value="400" inputmode="numeric" step="1" oninput="recalcScope(document.getElementById('editScoreList'))">
+      <span>分</span>
+    </div>
+    <div class="detail-sum" id="editSum" style="display:none"></div>
+    <div class="score-list" id="editScoreList" style="max-height:45vh" data-hv="editHandValue" data-sum="editSum"></div>
     <div class="sheet-btns">
       <button class="btn btn-ghost" style="flex:1" onclick="closeSheet('editSheet')">取消</button>
       <button class="btn btn-primary" style="flex:2" onclick="saveEdit()">保存修改</button>
@@ -533,6 +603,13 @@ let selectedPrize = new Set();
 let chartInst = null;
 let curPage='rank';
 let viewSeason = null;
+// ── 明细记账 ──
+const DEFAULT_HV = 400;          // 默认每手分值
+let entryMode = 'detail';        // 'detail' 明细记账 | 'simple' 直接填分
+let entryStep = 1;               // 1 选人 · 2 记账
+let entrySelected = new Set();   // 本场勾选的参赛人员
+let entryVals = {};              // 未保存的录入缓存 {name:{hands,chips}}
+let pending = {scores:{},detail:null,handValue:null};  // 待确认保存的一场
 
 function loadCfg(){ try{const s=localStorage.getItem(LS_CFG);if(s)cfg=JSON.parse(s);}catch{} }
 function saveCfg(){ localStorage.setItem(LS_CFG,JSON.stringify(cfg)); }
@@ -593,16 +670,17 @@ async function startApp(){
   const key=document.getElementById('apiKeyInput').value.trim();
   const bin=document.getElementById('binIdInput').value.trim();
   if(!key){showToast('⚠️ 请填入 API Key');return;}
-  cfg={apiKey:key,binId:bin,demo:false};
+  cfg=Object.assign({},cfg,{apiKey:key,binId:bin,demo:false});
   saveCfg();
   boot();
   await loadCloud();
 }
-function demoMode(){cfg={apiKey:'',binId:'',demo:true};saveCfg();boot();}
+function demoMode(){cfg=Object.assign({},cfg,{apiKey:'',binId:'',demo:true});saveCfg();boot();}
 function boot(){
   document.getElementById('setupScreen').style.display='none';
   document.getElementById('mainApp').style.display='flex';
   setToday();
+  entryMode=cfg.entryMode==='simple'?'simple':'detail';
   renderAll();
   if(!cfg.demo) loadCloud();
 }
@@ -749,7 +827,7 @@ function seasonRoster(s){
   ms.forEach(m=>Object.keys(m.scores||{}).forEach(n=>set.add(n)));
   return[...set].sort();
 }
-function attendance(p,ms){return ms.filter(m=>parseInt((m.scores||{})[p]||0)!==0).length;}
+function attendance(p,ms){return ms.filter(m=>m.detail?(p in m.detail):parseInt((m.scores||{})[p]||0)!==0).length;}
 function finalTotals(){
   const hid=new Set(db.hidden||[]);
   const p=seasonRoster().filter(n=>!hid.has(n)),t={};
@@ -815,7 +893,7 @@ function navTo(id){
 function renderAll(){
   refreshSeasonChip();
   renderRank();
-  renderScoreList();
+  renderEntry();
   if(curPage==='history')renderHistory();
   if(curPage==='chart'){renderTable();renderChartChips();renderChart();renderPrize();renderRecords();}
   if(curPage==='players'){renderPlayers();renderHistorical();}
@@ -878,11 +956,184 @@ function collectScores(container){
   return scores;
 }
 
+// ═══════════════ 明细记账（手数 / 筹码）═══════════════
+function renderEntry(){
+  setEntryMode(entryMode);
+  renderScoreList();
+  renderPickGrid();
+  if(entryStep===2)buildDetailRows();
+}
+
+function setEntryMode(m){
+  entryMode=(m==='simple')?'simple':'detail';
+  cfg.entryMode=entryMode;saveCfg();
+  document.getElementById('modeBtnDetail').classList.toggle('on',entryMode==='detail');
+  document.getElementById('modeBtnSimple').classList.toggle('on',entryMode==='simple');
+  document.getElementById('entrySimple').style.display=entryMode==='simple'?'':'none';
+  document.getElementById('entryStep1').style.display=(entryMode==='detail'&&entryStep===1)?'':'none';
+  document.getElementById('entryStep2').style.display=(entryMode==='detail'&&entryStep===2)?'':'none';
+}
+
+function renderPickGrid(){
+  const g=document.getElementById('pickGrid'),p=entryRoster();
+  if(!p.length){g.innerHTML='<div class="empty">请先在「选手」页添加选手</div>';}
+  else g.innerHTML=p.map(n=>`<div class="pick${entrySelected.has(n)?' on':''}" data-name="${n}" onclick="togPick(this)">${n}</div>`).join('');
+  const c=document.getElementById('pickCount');
+  if(c)c.textContent=entrySelected.size?`已选 ${entrySelected.size} 人`:'';
+}
+function togPick(el){
+  const n=el.dataset.name;
+  entrySelected.has(n)?entrySelected.delete(n):entrySelected.add(n);
+  renderPickGrid();
+}
+function pickAll(){entryRoster().forEach(n=>entrySelected.add(n));renderPickGrid();}
+function pickNone(){entrySelected.clear();renderPickGrid();}
+function pickLast(){
+  const ms=sortedMatches(db.currentSeason||'S5');
+  if(!ms.length){showToast('⚠️ 本赛季还没有比赛');return;}
+  const m=ms[ms.length-1];
+  const names=m.detail?Object.keys(m.detail):Object.keys(m.scores||{}).filter(n=>parseInt(m.scores[n]||0)!==0);
+  const all=roster();
+  entrySelected=new Set(names.filter(n=>all.includes(n)));
+  renderPickGrid();
+  showToast(`✅ 已沿用 ${m.date}（${entrySelected.size} 人）`);
+}
+
+function startDetail(){
+  if(!entrySelected.size){showToast('⚠️ 请至少选择一位参赛人员');return;}
+  entryStep=2;
+  document.getElementById('handValue').value=cfg.handValue||DEFAULT_HV;
+  buildDetailRows();
+  setEntryMode(entryMode);
+}
+function backToPick(){
+  cacheEntryVals();
+  entryStep=1;
+  renderPickGrid();
+  setEntryMode(entryMode);
+}
+
+// 已选人员按录入页顺序排列
+function selectedOrdered(){return entryRoster().filter(n=>entrySelected.has(n));}
+
+function buildDetailRows(){
+  const c=document.getElementById('detailList');
+  const data={};
+  selectedOrdered().forEach(n=>{data[n]=entryVals[n]||{hands:1,chips:''};});
+  renderDetailRows(c,data);
+  recalcScope(c);
+}
+
+// data: {name:{hands,chips}}
+function renderDetailRows(containerEl,data){
+  const names=Object.keys(data);
+  if(!names.length){containerEl.innerHTML='<div class="empty">没有参赛人员</div>';return;}
+  containerEl.innerHTML=names.map(n=>{
+    const d=data[n]||{};
+    const h=(d.hands===undefined||d.hands===null)?1:d.hands;
+    const ch=(d.chips===undefined||d.chips===null)?'':d.chips;
+    return`<div class="drow" data-name="${n}">
+      <div class="drow-top">
+        <span class="drow-name">${n}</span>
+        <span class="drow-net">0</span>
+      </div>
+      <div class="drow-fields">
+        <div class="dfield">
+          <span class="dlab">手数</span>
+          <button class="score-dec" onclick="adjHands(this,-1)">−</button>
+          <input class="dhands" type="number" value="${h}" min="0" step="1" inputmode="numeric" oninput="recalcFrom(this)">
+          <button class="score-inc" onclick="adjHands(this,1)">＋</button>
+        </div>
+        <div class="dfield">
+          <span class="dlab">筹码</span>
+          <input class="dchips" type="number" value="${ch}" placeholder="0" step="1" inputmode="numeric" oninput="recalcFrom(this)">
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function adjHands(btn,delta){
+  const inp=btn.parentElement.querySelector('.dhands');
+  inp.value=Math.max(0,(parseInt(inp.value)||0)+delta);
+  recalcFrom(inp);
+}
+function recalcFrom(el){
+  const c=el.closest('.score-list');
+  if(c)recalcScope(c);
+}
+
+// 重算某个明细容器：每行净分 + 顶部汇总
+function recalcScope(c){
+  if(!c)return;
+  const hvEl=document.getElementById(c.dataset.hv||'');
+  const hv=hvEl?(parseInt(hvEl.value)||0):DEFAULT_HV;
+  let hands=0,chips=0,n=0;
+  c.querySelectorAll('.drow').forEach(row=>{
+    const h=parseInt(row.querySelector('.dhands').value)||0;
+    const ch=parseInt(row.querySelector('.dchips').value)||0;
+    const net=ch-h*hv;
+    hands+=h;chips+=ch;n++;
+    const el=row.querySelector('.drow-net');
+    el.textContent=(net>0?'+':'')+net;
+    el.className='drow-net '+(net>0?'pos':net<0?'neg':'');
+  });
+  if(c.id==='detailList')cacheEntryVals();
+  const box=document.getElementById(c.dataset.sum||'');
+  if(!box)return;
+  box.style.display=n?'':'none';
+  const buyin=hands*hv,diff=chips-buyin;
+  const dCls=diff===0?'':diff>0?'pos':'neg';
+  box.innerHTML=`
+    <div class="dsum-i"><div class="dsum-l">人数</div><div class="dsum-v">${n}</div></div>
+    <div class="dsum-i"><div class="dsum-l">总手数</div><div class="dsum-v">${hands}</div></div>
+    <div class="dsum-i"><div class="dsum-l">总买入</div><div class="dsum-v">${buyin}</div></div>
+    <div class="dsum-i"><div class="dsum-l">总筹码</div><div class="dsum-v">${chips}</div></div>
+    <div class="dsum-i" style="grid-column:1/-1;border-top:1px solid var(--border);padding-top:8px;margin-top:2px">
+      <div class="dsum-l">差额（总筹码 − 总买入）</div>
+      <div class="dsum-v ${dCls}" style="font-size:18px">${diff>0?'+':''}${diff}</div>
+    </div>`;
+}
+
+function cacheEntryVals(){
+  document.querySelectorAll('#detailList .drow').forEach(row=>{
+    entryVals[row.dataset.name]={hands:parseInt(row.querySelector('.dhands').value)||0,chips:row.querySelector('.dchips').value};
+  });
+}
+
+function resetDetail(){
+  entryVals={};
+  buildDetailRows();
+}
+
+function collectDetailFrom(c){
+  const hvEl=document.getElementById(c.dataset.hv||'');
+  const hv=hvEl?(parseInt(hvEl.value)||0):DEFAULT_HV;
+  const scores={},detail={};
+  c.querySelectorAll('.drow').forEach(row=>{
+    const n=row.dataset.name;
+    const hands=parseInt(row.querySelector('.dhands').value)||0;
+    const chips=parseInt(row.querySelector('.dchips').value)||0;
+    detail[n]={hands,chips};
+    scores[n]=chips-hands*hv;
+  });
+  return{scores,detail,handValue:hv};
+}
+
 // 点保存 → 弹确认窗（防止忘改日期）
 function saveMatch(){
   const date=document.getElementById('entryDate').value;
   if(!date){showToast('⚠️ 请选择日期');return;}
-  if(!roster().length){showToast('⚠️ 请先添加选手');return;}
+  if(entryMode==='detail'){
+    if(entryStep!==2||!entrySelected.size){showToast('⚠️ 请先选择参赛人员并开始记录');return;}
+    const r=collectDetailFrom(document.getElementById('detailList'));
+    if(!r.handValue){showToast('⚠️ 每手分值不能为 0');return;}
+    cfg.handValue=r.handValue;saveCfg();
+    pending={scores:r.scores,detail:r.detail,handValue:r.handValue};
+  }else{
+    if(!roster().length){showToast('⚠️ 请先添加选手');return;}
+    pending={scores:collectScores(document.getElementById('scoreList')),detail:null,handValue:null};
+  }
   document.getElementById('confirmDate').value=date;
   updateConfirmWeekday();
   renderConfirmSummary();
@@ -905,10 +1156,14 @@ function updateConfirmWeekday(){
   el.textContent=ws[d.getDay()]+rel;
 }
 function renderConfirmSummary(){
-  const scores=collectScores(document.getElementById('scoreList'));
-  const entries=Object.entries(scores).filter(([,v])=>v!==0).sort((a,b)=>b[1]-a[1]);
+  const scores=pending.scores||{};
+  // 明细模式：净分为 0 也算参赛；简单模式仍按非 0 过滤
+  const entries=Object.entries(scores)
+    .filter(([n,v])=>pending.detail?true:v!==0)
+    .sort((a,b)=>b[1]-a[1]);
   const box=document.getElementById('confirmSummary');
-  const head=`<div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin:10px 0 6px">本场得分（${entries.length} 人参赛）</div>`;
+  const hvTag=pending.detail?`<span style="color:var(--accent);font-family:'JetBrains Mono',monospace"> · 每手 ${pending.handValue}</span>`:'';
+  const head=`<div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin:10px 0 6px">本场得分（${entries.length} 人参赛）${hvTag}</div>`;
   if(!entries.length){
     box.innerHTML=head+'<div style="color:var(--red);font-size:13px">⚠️ 所有人都是 0 分，确认要保存空场吗？</div>';
     return;
@@ -916,7 +1171,9 @@ function renderConfirmSummary(){
   const rows=entries.map(([n,v])=>{
     const cls=v>0?'pos':v<0?'neg':'';
     const sign=v>0?'+':'';
-    return`<div style="display:flex;justify-content:space-between;padding:6px 10px;background:var(--surface2);border-radius:8px;margin-bottom:4px"><span>${n}</span><span class="score-val ${cls}" style="font-family:'JetBrains Mono',monospace;font-weight:700">${sign}${v}</span></div>`;
+    const d=pending.detail&&pending.detail[n];
+    const sub=d?`<span style="color:var(--muted);font-size:11px;font-family:'JetBrains Mono',monospace;margin-left:8px">${d.hands}手 / ${d.chips}</span>`:'';
+    return`<div style="display:flex;justify-content:space-between;padding:6px 10px;background:var(--surface2);border-radius:8px;margin-bottom:4px"><span>${n}${sub}</span><span class="score-val ${cls}" style="font-family:'JetBrains Mono',monospace;font-weight:700">${sign}${v}</span></div>`;
   }).join('');
 
   // 校验区：总和 / 最高 / 最低 / 分差 — 方便核对是否有人输错
@@ -927,11 +1184,12 @@ function renderConfirmSummary(){
   const sumCls=sum===0?'':sum>0?'pos':'neg';
   const sumSign=sum>0?'+':'';
   const sumBorder=sum===0?'var(--border)':Math.abs(sum)<=10?'var(--accent)':'var(--red)';
+  const sumLabel=pending.detail?'总筹码 − 总买入':'总和';
   const sumHint=sum===0
-    ?'<span style="color:var(--green)">✓ 总和为 0</span>'
+    ?'<span style="color:var(--green)">✓ 账平（总和为 0）</span>'
     :Math.abs(sum)<=10
-      ?`<span style="color:var(--accent)">总和 ${sumSign}${sum}（误差较小）</span>`
-      :`<span style="color:var(--red)">⚠️ 总和 ${sumSign}${sum}，请核对有无输错</span>`;
+      ?`<span style="color:var(--accent)">${sumLabel} ${sumSign}${sum}（误差较小）</span>`
+      :`<span style="color:var(--red)">⚠️ ${sumLabel} ${sumSign}${sum}，请核对有无输错</span>`;
   const check=`
     <div style="margin-top:10px;padding:12px;background:var(--bg);border:1px solid ${sumBorder};border-radius:10px">
       <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">校验</div>
@@ -951,10 +1209,13 @@ async function confirmSave(){
   if(!date){showToast('⚠️ 请选择日期');return;}
   // 同步回录入页（用户在弹窗里改过日期）
   document.getElementById('entryDate').value=date;
-  const scores=collectScores(document.getElementById('scoreList'));
   const season=db.currentSeason||'S5';
-  db.matches.push({date,scores,season});
+  const m={date,scores:pending.scores||{},season};
+  if(pending.detail){m.detail=pending.detail;m.handValue=pending.handValue;}
+  db.matches.push(m);
   closeSheet('confirmSheet');
+  // 清空录入区，回到选人步骤
+  entryVals={};entrySelected=new Set();entryStep=1;
   renderAll();
   resetScores();
   const ok=await pushCloud();
@@ -969,13 +1230,20 @@ function renderHistory(){
   if(!ms.length){c.innerHTML='<div class="empty"><div class="empty-icon">📋</div>暂无记录</div>';return;}
   c.innerHTML=[...ms].reverse().map(m=>{
     const idx=db.matches.indexOf(m);
-    const cnt=Object.values(m.scores||{}).filter(v=>parseInt(v)!==0).length;
+    const cnt=m.detail?Object.keys(m.detail).length:Object.values(m.scores||{}).filter(v=>parseInt(v)!==0).length;
     const top=Object.entries(m.scores||{}).sort((a,b)=>b[1]-a[1])[0];
+    let dline='';
+    if(m.detail){
+      const hv=m.handValue||DEFAULT_HV;
+      const hands=Object.values(m.detail).reduce((a,d)=>a+(parseInt(d.hands)||0),0);
+      const chips=Object.values(m.detail).reduce((a,d)=>a+(parseInt(d.chips)||0),0);
+      dline=`<div class="hist-detail">${hands}手 × ${hv} = ${hands*hv} · 筹码 ${chips} · 差额 ${chips-hands*hv>0?'+':''}${chips-hands*hv}</div>`;
+    }
     return`<div class="history-item">
       <div>
         <div class="history-date">${m.date}</div>
         <div class="history-meta">${cnt}人参赛${top?` · 最高 ${top[0]}(${top[1]>0?'+':''}${top[1]})`:''}
-        </div>
+        </div>${dline}
       </div>
       <div class="history-actions">
         <button class="btn btn-info btn-sm" onclick="openEdit(${idx})">编辑</button>
@@ -990,7 +1258,19 @@ function openEdit(idx){
   editingIdx=idx;
   const m=db.matches[idx];
   document.getElementById('editDate').value=m.date;
-  buildScoreRows(document.getElementById('editScoreList'),m.scores||{});
+  const c=document.getElementById('editScoreList');
+  const hvRow=document.getElementById('editHVRow'),sumBox=document.getElementById('editSum');
+  if(m.detail){
+    // 明细记录：改手数/筹码，净分自动算
+    hvRow.style.display='';
+    document.getElementById('editHandValue').value=m.handValue||DEFAULT_HV;
+    renderDetailRows(c,m.detail);
+    recalcScope(c);
+  }else{
+    // 老记录：仍然直接改净分
+    hvRow.style.display='none';sumBox.style.display='none';
+    buildScoreRows(c,m.scores||{});
+  }
   openSheet('editSheet');
 }
 async function saveEdit(){
@@ -998,7 +1278,16 @@ async function saveEdit(){
   const date=document.getElementById('editDate').value;
   if(!date){showToast('⚠️ 请选择日期');return;}
   const old=db.matches[editingIdx];
-  db.matches[editingIdx]={date,scores:collectScores(document.getElementById('editScoreList')),season:old&&old.season||'S5'};
+  const c=document.getElementById('editScoreList');
+  const nm={date,season:old&&old.season||'S5'};
+  if(c.querySelector('.drow')){
+    const r=collectDetailFrom(c);
+    if(!r.handValue){showToast('⚠️ 每手分值不能为 0');return;}
+    nm.scores=r.scores;nm.detail=r.detail;nm.handValue=r.handValue;
+  }else{
+    nm.scores=collectScores(c);
+  }
+  db.matches[editingIdx]=nm;
   closeSheet('editSheet');renderAll();renderHistory();
   const ok=await pushCloud();
   if(ok) showToast('✅ 修改已保存');
