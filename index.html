@@ -719,7 +719,7 @@ async function loadCloud(){
     if(!cfg.binId){
       const res=await fetch('https://api.jsonbin.io/v3/b',{
         method:'POST',
-        headers:{'Content-Type':'application/json','X-Master-Key':cfg.apiKey,'X-Bin-Name':'积分赛程','X-Bin-Private':'false'},
+        headers:{'Content-Type':'application/json','X-Master-Key':cfg.apiKey,'X-Bin-Name':'jifen-ranking','X-Bin-Private':'false'},
         body:JSON.stringify({matches:[],players:[]})
       });
       const j=await res.json();
@@ -767,7 +767,7 @@ async function loadCloud(){
 
     // 采用云端版本
     db=cloudDb;migrateData();syncUI('ok',now());renderAll();saveLocal(false);
-  }catch{syncUI('err','网络错误');}
+  }catch(e){console.error('loadCloud 失败:',e);syncUI('err','出错：'+e.message);}
 }
 async function pushCloud(){
   if(cfg.demo) return true;  // demo 模式不持久化
@@ -790,7 +790,7 @@ async function pushCloud(){
       return true;
     }
     syncUI('err','保存失败');return false;
-  }catch{syncUI('err','网络错误');return false;}
+  }catch(e){console.error('pushCloud 失败:',e);syncUI('err','出错：'+e.message);return false;}
 }
 function forcSync(){loadCloud();}
 function now(){return new Date().toLocaleTimeString('zh',{hour:'2-digit',minute:'2-digit'});}
@@ -1855,7 +1855,7 @@ async function launchViewer(binId,apiKey){
     <div style="display:flex;align-items:center;gap:6px">
       <select class="vseason" id="vSeasonSel"></select>
       <span class="rf" id="rfInfo">加载中…</span>
-      <button class="rf-btn" onclick="fetchAndShow()">刷新</button>
+      <button class="rf-btn" onclick="fetchAndShow(true)">刷新</button>
     </div>
   </header>
   <div class="wrap">
@@ -1893,27 +1893,54 @@ async function launchViewer(binId,apiKey){
   </div>`;
 
   let lastData=null;
-  async function fetchAndShow(){
+  // ── 云端额度保护 ──
+  // jsonbin 免费版每月 10000 次请求。原来 30 秒轮询一次，一个页面开一天就是 2880 次。
+  // 现在：数据缓存在观众本机，打开页面直接读缓存（0 消耗），只有手动点「刷新」才请求云端。
+  const CACHE_KEY='rankCache_'+binId;
+  function readCache(){
+    try{const c=JSON.parse(localStorage.getItem(CACHE_KEY)||'null');return c&&c.record?c:null;}catch{return null;}
+  }
+  function writeCache(record,ts){
+    try{localStorage.setItem(CACHE_KEY,JSON.stringify({ts,record}));}catch{}
+  }
+  function applyData(record,ts,fromCache){
+    lastData=record;
+    // 兼容老数据
+    (lastData.matches||[]).forEach(m=>{if(!m.season)m.season='S5';});
+    lastData.seasons=lastData.seasons&&lastData.seasons.length?lastData.seasons:['S5'];
+    lastData.currentSeason=lastData.currentSeason||'S5';
+    // 同步赛季选择器
+    const sel=document.getElementById('vSeasonSel');
+    const prev=sel.value;
+    sel.innerHTML=lastData.seasons.map(s=>`<option value="${s}" ${s===lastData.currentSeason?'data-cur="1"':''}>${s}${s===lastData.currentSeason?' · 当前':''}</option>`).join('');
+    sel.value=prev&&lastData.seasons.includes(prev)?prev:lastData.currentSeason;
+    sel.onchange=()=>renderForSeason();
+    lastFromCache=fromCache;lastStamp=ts;
+    renderForSeason();
+    const t=new Date(ts).toLocaleTimeString('zh',{hour:'2-digit',minute:'2-digit'});
+    document.getElementById('rfInfo').textContent=(fromCache?'缓存 ':'更新 ')+t;
+  }
+  // force=true 才真正请求云端（手动点刷新）；否则只读本地缓存
+  async function fetchAndShow(force){
+    const c=readCache();
+    if(!force){
+      if(c){applyData(c.record,c.ts,true);return;}
+      // 本机没有缓存（第一次打开）→ 必须拉一次
+    }
+    if(c&&!lastData)applyData(c.record,c.ts,true);  // 先垫上缓存，避免白屏
     document.getElementById('rfInfo').textContent='加载中…';
+    const fallback=msg=>{
+      if(c){applyData(c.record,c.ts,true);document.getElementById('rfInfo').textContent=msg;}
+      else{document.getElementById('list').innerHTML=`<div class="loading" style="color:#ff6b6b">${msg}</div>`;document.getElementById('rfInfo').textContent=msg;}
+    };
     try{
       const res=await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`,{headers:{'X-Master-Key':apiKey}});
       const j=await res.json();
-      if(!j.record){document.getElementById('list').innerHTML='<div class="loading" style="color:#ff6b6b">加载失败，请刷新</div>';return;}
-      lastData=j.record;
-      // 兼容老数据
-      (lastData.matches||[]).forEach(m=>{if(!m.season)m.season='S5';});
-      lastData.seasons=lastData.seasons&&lastData.seasons.length?lastData.seasons:['S5'];
-      lastData.currentSeason=lastData.currentSeason||'S5';
-      // 同步赛季选择器
-      const sel=document.getElementById('vSeasonSel');
-      const prev=sel.value;
-      sel.innerHTML=lastData.seasons.map(s=>`<option value="${s}" ${s===lastData.currentSeason?'data-cur="1"':''}>${s}${s===lastData.currentSeason?' · 当前':''}</option>`).join('');
-      sel.value=prev&&lastData.seasons.includes(prev)?prev:lastData.currentSeason;
-      sel.onchange=()=>renderForSeason();
-      renderForSeason();
-      const t=new Date().toLocaleTimeString('zh',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-      document.getElementById('rfInfo').textContent='更新 '+t;
-    }catch{document.getElementById('list').innerHTML='<div class="loading" style="color:#ff6b6b">网络错误</div>';document.getElementById('rfInfo').textContent='加载失败';}
+      if(!j.record){fallback(res.status===429?'云端额度已用尽':'加载失败');return;}
+      const ts=Date.now();
+      writeCache(j.record,ts);
+      applyData(j.record,ts,false);
+    }catch{fallback('网络错误');}
   }
   function renderForSeason(){
     if(!lastData)return;
@@ -1935,7 +1962,7 @@ async function launchViewer(binId,apiKey){
     }).join('');
     if(!sorted.length)html='<div class="loading">本赛季暂无数据</div>';
     document.getElementById('list').innerHTML=html;
-    document.getElementById('foot').textContent=`${sea} · ${sorted.length}名选手 · ${ms.length}场比赛 · 30秒自动刷新`;
+    document.getElementById('foot').textContent=`${sea} · ${sorted.length}名选手 · ${ms.length}场比赛 · ${lastFromCache?'数据来自缓存，点「刷新」更新':'已是最新'}`;
     const sBtn=document.getElementById('vSummaryBtn'),sUrl=summaryURL(sea);
     if(sBtn){
       if(sUrl){sBtn.href=sUrl;document.getElementById('vSummaryTxt').textContent=`${sea} 赛季总结`;sBtn.style.display='flex';}
@@ -2090,7 +2117,7 @@ async function launchViewer(binId,apiKey){
     if(later&&later.ps.length)items.push({ic:'📊',l:'后程发力',v:fmt(+later.v.toFixed(1)),m:fmtPS(later.ps),neg:later.v<0});
     box.innerHTML=note+items.map(it=>`<div class="vrec"><div class="vrec-icon">${it.ic}</div><div class="vrec-label">${it.l}</div><div class="vrec-value ${it.neg?'neg':''}">${it.v}</div><div class="vrec-meta">${it.m}</div></div>`).join('');
   }
-  let zoomInst=null,lastSnapshot=null;
+  let zoomInst=null,lastSnapshot=null,lastFromCache=false,lastStamp=0;
   function leaderPlugin(){
     return{id:'leaderLines',afterDatasetsDraw(chart){
       const{ctx,chartArea}=chart;const canvasW=chart.width;const labels=[];
@@ -2156,7 +2183,6 @@ async function launchViewer(binId,apiKey){
   document.getElementById('zoomCloseBtn').onclick=closeZoomViewer;
 
   fetchAndShow();
-  setInterval(fetchAndShow,30000);
 }
 
 checkViewer();
