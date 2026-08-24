@@ -1556,17 +1556,22 @@ function togPrize(idx){selectedPrize.has(idx)?selectedPrize.delete(idx):selected
 function calcPrize(){
   const r=document.getElementById('prizeResult');
   if(!selectedPrize.size){r.innerHTML='';return;}
-  const comb={};
-  selectedPrize.forEach(idx=>{const m=db.matches[idx];Object.entries(m.scores||{}).forEach(([n,v])=>{comb[n]=(comb[n]||0)+parseInt(v||0);});});
-  const chips=Object.fromEntries(Object.entries(comb).filter(([,v])=>v!==0));
-  if(!Object.keys(chips).length){r.innerHTML='<div style="color:var(--muted);font-size:13px">积分均为0</div>';return;}
-  const{adjusted,pounds}=prizeCalc(chips);
+  const comb={},adjusted={};
+  selectedPrize.forEach(idx=>{
+    const m=db.matches[idx],chips={};
+    Object.entries(m.scores||{}).forEach(([n,v])=>{const x=parseInt(v||0);comb[n]=(comb[n]||0)+x;if(x!==0)chips[n]=x;});
+    if(!Object.keys(chips).length)return;
+    const{adjusted:a}=prizeCalc(chips);
+    Object.entries(a).forEach(([n,v])=>{adjusted[n]=(adjusted[n]||0)+v;});
+  });
+  if(!Object.keys(adjusted).length){r.innerHTML='<div style="color:var(--muted);font-size:13px">积分均为0</div>';return;}
+  const pounds=Object.fromEntries(Object.entries(adjusted).map(([k,v])=>[k,parseFloat((v/80).toFixed(2))]));
   const total=Object.values(comb).reduce((a,b)=>a+b,0);
   const rows=Object.entries(pounds).sort((a,b)=>b[1]-a[1]).map(([n,lbs])=>{
     const raw=comb[n]||0,adj=adjusted[n],cls=lbs>=0?'pos':'neg';
     return`<tr><td>${n}</td><td class="${raw>0?'pos':raw<0?'neg':''}">${raw>0?'+':''}${raw}</td><td>${adj>0?'+':''}${adj.toFixed(1)}</td><td class="${cls}">${lbs>=0?'+':''}£${lbs.toFixed(2)}</td></tr>`;
   }).join('');
-  r.innerHTML=`<div style="font-size:11px;color:var(--muted);margin-bottom:8px">已选${selectedPrize.size}场 · 差值${total>0?'+':''}${total}（${(total/80).toFixed(2)}镑）</div><div class="tbl-wrap" style="max-height:none;overflow:visible"><table><thead><tr><th>选手</th><th>原始</th><th>调整</th><th>英镑</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  r.innerHTML=`<div style="font-size:11px;color:var(--muted);margin-bottom:8px">已选${selectedPrize.size}场 · 各场分别调整 · 差值合计${total>0?'+':''}${total}（${(total/80).toFixed(2)}镑）</div><div class="tbl-wrap" style="max-height:none;overflow:visible"><table><thead><tr><th>选手</th><th>原始</th><th>调整</th><th>英镑</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 function prizeCalc(chips){
   const tot=Object.values(chips).reduce((a,b)=>a+b,0),adj={...chips};
