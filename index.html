@@ -315,6 +315,7 @@ td.pos{color:var(--green)}td.neg{color:var(--red)}
 
   <button class="btn-start" onclick="startApp()">🚀 完成配置，进入管理端</button>
   <button class="demo-btn" onclick="demoMode()">👁 演示模式（本地，不同步）</button>
+  <button class="demo-btn" onclick="location.href='recover.html'">🕘 数据找回（历史版本）</button>
 </div>
 </div>
 
@@ -323,13 +324,18 @@ td.pos{color:var(--green)}td.neg{color:var(--red)}
   <div class="app-header">
     <div class="logo">🏆</div>
     <button class="season-chip" id="seasonChip" onclick="openSeasonSheet()"><span id="seasonChipText">S5</span><span class="arr">▼</span></button>
-    <div class="sync-pill">
+    <div class="sync-pill" onclick="forcSync()" title="点击重新同步" style="cursor:pointer">
       <div class="sync-dot" id="syncDot"></div>
       <span id="syncLabel">未连接</span>
     </div>
     <button class="hdr-btn" id="summaryBtn" onclick="openSummary()" title="赛季总结" style="display:none">📊</button>
     <button class="hdr-btn" onclick="showQR()" title="分享查看端">📱</button>
     <button class="hdr-btn" onclick="goSetup()" title="设置">⚙️</button>
+  </div>
+
+  <!-- 未连上云端时的红条：此时记分会覆盖云端，所以写操作被锁死 -->
+  <div id="cloudLockBar" onclick="forcSync()" style="display:none;cursor:pointer;background:#3a1416;color:#ff9b9b;border-bottom:1px solid #ff6b6b;padding:8px 12px;font-size:12px;line-height:1.5;text-align:center">
+    ⚠️ 未连上云端，暂时不能记分（防止覆盖）— 点这里重试
   </div>
 
   <div class="page-scroll">
@@ -595,6 +601,8 @@ td.pos{color:var(--green)}td.neg{color:var(--red)}
 // ═══════════════════════════ CONFIG ═══════════════════════════
 const LS_CFG = 'jifen_cfg_v3';
 const LS_DATA = 'jifen_data_v1';
+const LS_SNAP = 'jifen_cloud_snaps';   // 覆盖云端前的回滚快照（最多 5 份）
+let cloudOK = false;                   // 是否已成功读到云端；false 时禁止一切写操作
 let cfg = {apiKey:'',binId:'',demo:false};
 let db = {matches:[],players:[],hidden:[],seasons:['S5'],currentSeason:'S5'};
 let tableMode = 'cumulative';
@@ -704,16 +712,78 @@ function dbBody(){
     currentSeason:db.currentSeason||'S5'
   });
 }
+// ── 防覆盖（2026-08 修复：8/22 数据被旧快照整段顶掉）──
+// 规则：① 没成功读到云端 → 一律不许写；② 每次 PUT 前先读一次云端做比对，
+// 云端有本机没有的场次就先合并；③ 覆盖前把云端原样存一份本地快照，可回滚。
+function normDb(r){
+  r=r||{};
+  return{
+    matches:r.matches||[],players:r.players||[],hidden:r.hidden||[],
+    seasons:(r.seasons&&r.seasons.length)?r.seasons:['S5'],
+    currentSeason:r.currentSeason||'S5'
+  };
+}
+// 比赛没有 id，用「赛季+日期+参赛名单」当唯一键
+function matchKey(m){return(m.season||'S5')+'|'+m.date+'|'+Object.keys(m.scores||{}).sort().join(',');}
+function mergeDbs(base,other){
+  const out=normDb(JSON.parse(JSON.stringify(base)));
+  const have=new Set(out.matches.map(matchKey));
+  (other.matches||[]).forEach(m=>{const k=matchKey(m);if(!have.has(k)){out.matches.push(m);have.add(k);}});
+  out.players=[...new Set([...(base.players||[]),...(other.players||[])])];
+  out.hidden=[...new Set([...(base.hidden||[]),...(other.hidden||[])])];
+  out.seasons=[...new Set([...(base.seasons||[]),...(other.seasons||[])])];
+  return out;
+}
+// 统一的云端读取：把额度用尽(429)、HTTP 错误、断网分开报，绝不静默
+async function fetchCloud(){
+  try{
+    const res=await fetch(`https://api.jsonbin.io/v3/b/${cfg.binId}/latest`,{headers:{'X-Master-Key':cfg.apiKey}});
+    if(res.status===429)return{ok:false,msg:'云端额度已用尽'};
+    if(res.status===401||res.status===403)return{ok:false,msg:'API Key 无效'};
+    if(!res.ok)return{ok:false,msg:'读取失败 '+res.status};
+    const j=await res.json();
+    if(!j.record)return{ok:false,msg:'读取失败'};
+    return{ok:true,record:j.record};
+  }catch(e){console.error('fetchCloud 失败:',e);return{ok:false,msg:'网络错误'};}
+}
+// 覆盖云端前留一份原样快照，最多保 5 份（recover.html 可读回）
+function backupCloud(record){
+  const one={ts:Date.now(),record};
+  try{
+    const arr=JSON.parse(localStorage.getItem(LS_SNAP)||'[]');
+    arr.push(one);
+    while(arr.length>5)arr.shift();
+    localStorage.setItem(LS_SNAP,JSON.stringify(arr));
+  }catch(e){
+    try{localStorage.setItem(LS_SNAP,JSON.stringify([one]));}catch{}
+  }
+}
+// ok=true 已连上；ok=false 连不上（挂红条）；ok='pending' 同步中（禁写但先不吓人）
+function setCloudOK(ok){
+  cloudOK=(ok===true);
+  const b=document.getElementById('cloudLockBar');
+  if(b)b.style.display=(ok===false)?'':'none';
+}
+// 所有写操作的闸门：没连上云端就不让记分
+function requireCloud(){
+  if(cfg.demo)return true;
+  if(cloudOK)return true;
+  alert('⚠️ 还没连上云端。\n\n现在保存会把本机的旧数据整段覆盖到云端，'
+    +'别人刚记的场次会消失。\n\n请先点右上角的同步状态重试，'
+    +'等它变成绿色「已同步」再记分。');
+  return false;
+}
 async function loadCloud(){
-  if(cfg.demo){syncUI('','演示');return;}
+  if(cfg.demo){syncUI('','演示');setCloudOK(true);return;}
 
   // 立即用本地备份渲染（即使没网也能看到数据，仅非 demo 模式）
   const local=loadLocal();
   if(local&&local.db){
-    db={matches:local.db.matches||[],players:local.db.players||[],hidden:local.db.hidden||[],seasons:local.db.seasons||['S5'],currentSeason:local.db.currentSeason||'S5'};
+    db=normDb(local.db);
     migrateData();renderAll();
   }
 
+  setCloudOK('pending');
   syncUI('syncing','同步中…');
   try{
     if(!cfg.binId){
@@ -726,71 +796,106 @@ async function loadCloud(){
       if(j.metadata?.id){
         cfg.binId=j.metadata.id;saveCfg();
         if(!local) db={matches:[],players:[],hidden:[],seasons:['S5'],currentSeason:'S5'};
-        migrateData();syncUI('ok',now());renderAll();saveLocal(false);
+        migrateData();syncUI('ok',now());setCloudOK(true);renderAll();saveLocal(false);
       }else{syncUI('err','创建失败');showToast('❌ 检查 API Key');}
       return;
     }
-    const res=await fetch(`https://api.jsonbin.io/v3/b/${cfg.binId}/latest`,{headers:{'X-Master-Key':cfg.apiKey}});
-    const j=await res.json();
-    if(!j.record){syncUI('err','读取失败');return;}
+    const chk=await fetchCloud();
+    if(!chk.ok){
+      // 读不到云端就停在「未连接」，写操作全部锁死，绝不让旧数据顶掉云端
+      syncUI('err',chk.msg);setCloudOK(false);
+      showToast('⚠️ '+chk.msg+'，暂时不能记分');
+      return;
+    }
 
-    const cloudDb={matches:j.record.matches||[],players:j.record.players||[],hidden:j.record.hidden||[],seasons:j.record.seasons||['S5'],currentSeason:j.record.currentSeason||'S5'};
+    const cloudDb=normDb(chk.record);
 
     // 本地有未推上去的数据 → 需要判断是否真的有冲突
     if(local&&local.pendingPush){
-      const localBody=JSON.stringify({matches:local.db.matches||[],players:local.db.players||[],hidden:local.db.hidden||[],seasons:local.db.seasons||['S5'],currentSeason:local.db.currentSeason||'S5'});
-      const cloudBody=JSON.stringify(cloudDb);
-      if(localBody===cloudBody){
+      const localDb=normDb(local.db);
+      if(JSON.stringify(localDb)===JSON.stringify(cloudDb)){
         // 上次其实推成功了，只是没标记。直接清干净。
-        db=cloudDb;migrateData();syncUI('ok',now());renderAll();saveLocal(false);
+        db=cloudDb;migrateData();syncUI('ok',now());setCloudOK(true);renderAll();saveLocal(false);
         return;
       }
-      // 真冲突 — 询问用户
-      const localCnt=(local.db.matches||[]).length;
-      const cloudCnt=cloudDb.matches.length;
+      // 真冲突 — 列出两边各自独有的场次，默认合并（谁都不丢）
+      const ck=new Set(cloudDb.matches.map(matchKey)),lk=new Set(localDb.matches.map(matchKey));
+      const localOnly=localDb.matches.filter(m=>!ck.has(matchKey(m)));
+      const cloudOnly=cloudDb.matches.filter(m=>!lk.has(matchKey(m)));
       const tm=new Date(local.lastModified).toLocaleString('zh-CN');
-      const useLocal=confirm(
-        '检测到本地有未同步数据：\n\n'+
-        '本地：'+localCnt+' 场比赛（'+tm+'）\n'+
-        '云端：'+cloudCnt+' 场比赛\n\n'+
-        '【确定】上传本地版本到云端（推荐）\n'+
-        '【取消】丢弃本地，使用云端版本'
+      const lst=a=>a.length?a.map(m=>'　· '+m.date).join('\n'):'　（无）';
+      const doMerge=confirm(
+        '本机有未同步的改动（'+tm+'）：\n\n'+
+        '本机独有 '+localOnly.length+' 场：\n'+lst(localOnly)+'\n\n'+
+        '云端独有 '+cloudOnly.length+' 场：\n'+lst(cloudOnly)+'\n\n'+
+        '【确定】两边合并，一场都不丢（推荐）\n'+
+        '【取消】丢弃本机改动，只用云端版本'
       );
-      if(useLocal){
-        // 当前 db 已是本地版本，直接推
+      if(doMerge){
+        db=mergeDbs(cloudDb,localDb);migrateData();renderAll();setCloudOK(true);
         const ok=await pushCloud();
-        if(ok)showToast('✅ 本地数据已上传到云端');
-        else showToast('⚠️ 上传失败，数据仍在本地，稍后再试');
+        if(ok)showToast('✅ 已合并并同步到云端（共 '+db.matches.length+' 场）');
+        else showToast('⚠️ 合并结果尚未上传，数据留在本机，稍后再试');
         return;
       }
     }
 
     // 采用云端版本
-    db=cloudDb;migrateData();syncUI('ok',now());renderAll();saveLocal(false);
-  }catch(e){console.error('loadCloud 失败:',e);syncUI('err','出错：'+e.message);}
+    db=cloudDb;migrateData();syncUI('ok',now());setCloudOK(true);renderAll();saveLocal(false);
+  }catch(e){console.error('loadCloud 失败:',e);syncUI('err','出错：'+e.message);setCloudOK(false);}
 }
-async function pushCloud(){
+// opts.force=true 只跳过「合并提示」（用于导入这类明确的整段覆盖），
+// 仍然要求先读到云端、仍然会留回滚快照。
+async function pushCloud(opts){
+  const force=!!(opts&&opts.force);
   if(cfg.demo) return true;  // demo 模式不持久化
   // 第一步：立即写本地备份（同步，不会被关页面打断）
   saveLocal(true);
   if(!cfg.binId||!cfg.apiKey)return false;
   syncUI('syncing','保存中…');
   try{
+    // 覆盖前先读一次云端：确认本机不会抹掉别处刚存的场次
+    const chk=await fetchCloud();
+    if(!chk.ok){
+      setCloudOK(false);syncUI('err',chk.msg);
+      showToast('⚠️ '+chk.msg+'，为防止覆盖已放弃保存（数据留在本机，恢复后再同步）');
+      return false;
+    }
+    const cloudDb=normDb(chk.record);
+    if(!force){
+      const mine=new Set(db.matches.map(matchKey));
+      const cloudOnly=cloudDb.matches.filter(m=>!mine.has(matchKey(m)));
+      if(cloudOnly.length){
+        const go=confirm(
+          '云端有 '+cloudOnly.length+' 场本机没有的比赛：\n'+
+          cloudOnly.map(m=>'　· '+m.date).join('\n')+'\n\n'+
+          '直接保存会把它们删掉。\n\n'+
+          '【确定】先合并进来再保存（推荐）\n'+
+          '【取消】放弃这次保存'
+        );
+        if(!go){syncUI('err','已取消');showToast('已取消保存，数据留在本机');return false;}
+        db=mergeDbs(cloudDb,db);migrateData();renderAll();
+      }
+    }
+    // 覆盖前留一份云端原样快照，可回滚
+    backupCloud(chk.record);
+
     const body=dbBody();
     const res=await fetch(`https://api.jsonbin.io/v3/b/${cfg.binId}`,{
       method:'PUT',
       headers:{'Content-Type':'application/json','X-Master-Key':cfg.apiKey},
       body
     });
+    if(res.status===429){syncUI('err','额度已用尽');setCloudOK(false);showToast('❌ 云端额度已用尽，未能保存');return false;}
     const j=await res.json();
     if(j.record){
-      syncUI('ok',now());
+      syncUI('ok',now());setCloudOK(true);
       // 若推送期间 db 又被改了，则保持 dirty=true，等下次推送
       saveLocal(dbBody()!==body);
       return true;
     }
     syncUI('err','保存失败');return false;
-  }catch(e){console.error('pushCloud 失败:',e);syncUI('err','出错：'+e.message);return false;}
+  }catch(e){console.error('pushCloud 失败:',e);syncUI('err','出错：'+e.message);setCloudOK(false);return false;}
 }
 function forcSync(){loadCloud();}
 function now(){return new Date().toLocaleTimeString('zh',{hour:'2-digit',minute:'2-digit'});}
@@ -912,7 +1017,9 @@ function renderRank(){
 }
 
 // ═══════════════════════════ ENTRY ═══════════════════════════
-function setToday(){document.getElementById('entryDate').value=new Date().toISOString().slice(0,10);}
+// 注意：不能用 toISOString()，那是 UTC —— 英国夏令时凌晨 0~1 点录入会写成前一天
+function todayStr(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);}
+function setToday(){document.getElementById('entryDate').value=todayStr();}
 
 function buildScoreRows(containerEl, matchScores, names){
   const p=names||roster();
@@ -1205,6 +1312,7 @@ function renderConfirmSummary(){
   box.innerHTML=head+`<div style="max-height:22vh;overflow-y:auto">${rows}</div>`+check;
 }
 async function confirmSave(){
+  if(!requireCloud())return;
   const date=document.getElementById('confirmDate').value;
   if(!date){showToast('⚠️ 请选择日期');return;}
   // 同步回录入页（用户在弹窗里改过日期）
@@ -1275,6 +1383,7 @@ function openEdit(idx){
 }
 async function saveEdit(){
   if(editingIdx<0)return;
+  if(!requireCloud())return;
   const date=document.getElementById('editDate').value;
   if(!date){showToast('⚠️ 请选择日期');return;}
   const old=db.matches[editingIdx];
@@ -1294,6 +1403,7 @@ async function saveEdit(){
   else showToast('⚠️ 修改已暂存本地，云端未同步');
 }
 async function delMatch(idx){
+  if(!requireCloud())return;
   if(!confirm(`确定删除 ${db.matches[idx].date} 的记录？`))return;
   db.matches.splice(idx,1);renderAll();renderHistory();
   const ok=await pushCloud();
@@ -1737,27 +1847,46 @@ function exportJSON(){
   const blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
-  a.download=`积分数据_${new Date().toISOString().slice(0,10)}.json`;
+  a.download=`积分数据_${todayStr()}.json`;
   a.click();
   showToast('✅ 数据已导出');
 }
 function importJSON(e){
   const file=e.target.files[0];if(!file)return;
+  if(!requireCloud()){e.target.value='';return;}
   const reader=new FileReader();
-  reader.onload=ev=>{
+  reader.onload=async ev=>{
     try{
       const data=JSON.parse(ev.target.result);
       // 兼容旧版（纯数组）和新版（对象）
-      if(Array.isArray(data)){
-        db={matches:data,players:[],hidden:[],seasons:['S5'],currentSeason:'S5'};
-      } else {
-        db={matches:data.matches||[],players:data.players||[],hidden:data.hidden||[],seasons:data.seasons||['S5'],currentSeason:data.currentSeason||'S5'};
+      const inc=Array.isArray(data)
+        ?normDb({matches:data})
+        :normDb(data);
+      if(!inc.matches.length){showToast('❌ 文件里没有比赛记录');return;}
+
+      // 默认走「合并」：只把当前没有的场次补进来，绝不删东西
+      const have=new Set(db.matches.map(matchKey));
+      const add=inc.matches.filter(m=>!have.has(matchKey(m)));
+      const lst=add.length?add.slice(0,20).map(m=>'　· '+m.date).join('\n')+(add.length>20?'\n　…':''):'　（无）';
+      const merge=confirm(
+        '文件里有 '+inc.matches.length+' 场，其中 '+add.length+' 场是当前没有的：\n'+lst+'\n\n'+
+        '【确定】合并：把这 '+add.length+' 场补进来，现有记录一场不动（推荐）\n'+
+        '【取消】改用整段覆盖（危险）'
+      );
+      let ok;
+      if(merge){
+        db=mergeDbs(db,inc);migrateData();renderAll();
+        ok=await pushCloud();
+        showToast(ok?`✅ 已合并 ${add.length} 场，共 ${db.matches.length} 场，已同步`
+                   :`⚠️ 已合并 ${add.length} 场，但云端未同步`);
+      }else{
+        if(!confirm('⚠️ 整段覆盖：云端现有的 '+db.matches.length+' 场会被文件里的 '+inc.matches.length+' 场全部替换，不可撤销。\n\n确定要覆盖吗？'))return;
+        db=inc;migrateData();renderAll();
+        ok=await pushCloud({force:true});
+        showToast(ok?`✅ 已覆盖为 ${db.matches.length} 场并同步到云端`
+                   :`⚠️ 覆盖未成功，云端未改动`);
       }
-      migrateData();
-      pushCloud();
-      renderAll();
-      showToast(`✅ 导入成功：${db.matches.length} 场比赛，已同步到云端`);
-    }catch{showToast('❌ JSON 格式错误，请检查文件');}
+    }catch(err){console.error('导入失败:',err);showToast('❌ JSON 格式错误，请检查文件');}
   };
   reader.readAsText(file);
   e.target.value='';
