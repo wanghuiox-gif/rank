@@ -1807,8 +1807,8 @@ function renderHistorical(){
     }).join('');
   }
   if(allRank.length){
-    html+='<div style="font-size:11px;color:var(--muted);margin:14px 0 8px;letter-spacing:1px">累计总积分（所有赛季）</div>';
-    html+=`<div class="tbl-wrap"><table><thead><tr><th>排名</th><th>选手</th><th>累计</th></tr></thead><tbody>${allRank.slice(0,10).map((e,i)=>`<tr><td>${i+1}</td><td>${e[0]}</td><td class="${e[1]>0?'pos':e[1]<0?'neg':''}">${fmtScore(e[1])}</td></tr>`).join('')}</tbody></table></div>`;
+    html+=`<div style="font-size:11px;color:var(--muted);margin:14px 0 8px;letter-spacing:1px">累计总积分（所有赛季 · ${allRank.length}人）</div>`;
+    html+=`<div class="tbl-wrap" style="max-height:50vh"><table><thead><tr><th>排名</th><th>选手</th><th>累计</th></tr></thead><tbody>${allRank.map((e,i)=>`<tr><td>${i+1}</td><td>${e[0]}</td><td class="${e[1]>0?'pos':e[1]<0?'neg':''}">${fmtScore(e[1])}</td></tr>`).join('')}</tbody></table></div>`;
   }
   if(aHigh.v>-Infinity){
     html+=`<div style="font-size:11px;color:var(--muted);margin:14px 0 8px;letter-spacing:1px">单场历史记录</div>
