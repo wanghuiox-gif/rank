@@ -611,6 +611,10 @@ let selectedPrize = new Set();
 let chartInst = null;
 let curPage='rank';
 let viewSeason = null;
+// ── 有意删除的标记（tombstone）──
+// 记下本机主动删掉的东西，合并时就不会再从云端捡回来；推送成功后清空。
+// 场次 → matchKey(m)　选手 → 'player:名字'　隐藏名单 → 'hidden:名字'
+let tombs = new Set();
 // ── 明细记账 ──
 const DEFAULT_HV = 400;          // 默认每手分值
 let entryMode = 'detail';        // 'detail' 明细记账 | 'simple' 直接填分
@@ -632,7 +636,8 @@ function saveLocal(dirty){
     localStorage.setItem(LS_DATA,JSON.stringify({
       db,
       lastModified:Date.now(),
-      pendingPush:!!dirty
+      pendingPush:!!dirty,
+      tombs:[...tombs]
     }));
   }catch(e){console.warn('本地备份失败',e);}
 }
@@ -727,10 +732,13 @@ function normDb(r){
 function matchKey(m){return(m.season||'S5')+'|'+m.date+'|'+Object.keys(m.scores||{}).sort().join(',');}
 function mergeDbs(base,other){
   const out=normDb(JSON.parse(JSON.stringify(base)));
+  // 本机主动删掉的，不再从 base（通常是云端）里捡回来
+  out.matches=out.matches.filter(m=>!tombs.has(matchKey(m)));
   const have=new Set(out.matches.map(matchKey));
   (other.matches||[]).forEach(m=>{const k=matchKey(m);if(!have.has(k)){out.matches.push(m);have.add(k);}});
-  out.players=[...new Set([...(base.players||[]),...(other.players||[])])];
-  out.hidden=[...new Set([...(base.hidden||[]),...(other.hidden||[])])];
+  const uni=(a,b,pre)=>[...new Set([...(a||[]),...(b||[])])].filter(x=>!tombs.has(pre+x));
+  out.players=uni(base.players,other.players,'player:');
+  out.hidden=uni(base.hidden,other.hidden,'hidden:');
   out.seasons=[...new Set([...(base.seasons||[]),...(other.seasons||[])])];
   return out;
 }
@@ -778,6 +786,8 @@ async function loadCloud(){
 
   // 立即用本地备份渲染（即使没网也能看到数据，仅非 demo 模式）
   const local=loadLocal();
+  // 上次没推成功的删除，标记要跟着恢复，否则这轮合并又会把它捡回来
+  if(local&&local.pendingPush&&Array.isArray(local.tombs))tombs=new Set(local.tombs);
   if(local&&local.db){
     db=normDb(local.db);
     migrateData();renderAll();
@@ -864,7 +874,8 @@ async function pushCloud(opts){
     const cloudDb=normDb(chk.record);
     if(!force){
       const mine=new Set(db.matches.map(matchKey));
-      const cloudOnly=cloudDb.matches.filter(m=>!mine.has(matchKey(m)));
+      // 只保护别人新增的场次；本机刚删掉的那条不算「云端独有」
+      const cloudOnly=cloudDb.matches.filter(m=>!mine.has(matchKey(m))&&!tombs.has(matchKey(m)));
       if(cloudOnly.length){
         const go=confirm(
           '云端有 '+cloudOnly.length+' 场本机没有的比赛：\n'+
@@ -890,6 +901,7 @@ async function pushCloud(opts){
     const j=await res.json();
     if(j.record){
       syncUI('ok',now());setCloudOK(true);
+      tombs.clear();   // 删除已经落到云端，标记不再需要（也避免误伤以后的同名记录）
       // 若推送期间 db 又被改了，则保持 dirty=true，等下次推送
       saveLocal(dbBody()!==body);
       return true;
@@ -1396,6 +1408,7 @@ async function saveEdit(){
   }else{
     nm.scores=collectScores(c);
   }
+  if(old)tombs.add(matchKey(old));
   db.matches[editingIdx]=nm;
   closeSheet('editSheet');renderAll();renderHistory();
   const ok=await pushCloud();
@@ -1405,6 +1418,7 @@ async function saveEdit(){
 async function delMatch(idx){
   if(!requireCloud())return;
   if(!confirm(`确定删除 ${db.matches[idx].date} 的记录？`))return;
+  tombs.add(matchKey(db.matches[idx]));
   db.matches.splice(idx,1);renderAll();renderHistory();
   const ok=await pushCloud();
   if(ok) showToast('🗑️ 已删除');
@@ -1447,8 +1461,8 @@ function renderChartChips(){
 }
 function togChartHidden(name){
   db.hidden=db.hidden||[];
-  if(db.hidden.includes(name))db.hidden=db.hidden.filter(x=>x!==name);
-  else db.hidden.push(name);
+  if(db.hidden.includes(name)){db.hidden=db.hidden.filter(x=>x!==name);tombs.add('hidden:'+name);}
+  else {db.hidden.push(name);tombs.delete('hidden:'+name);}
   pushCloud();
   renderChartChips();renderChart();renderTable();
 }
@@ -1836,12 +1850,14 @@ function addPlayer(){
 }
 function removePlayer(name){
   if(!confirm(`确定删除「${name}」？`))return;
+  tombs.add('player:'+name);
   db.players=db.players.filter(p=>p!==name);pushCloud();renderAll();showToast(`🗑️ 已删除 ${name}`);
 }
 function renamePlayer(){
   const old=document.getElementById('renameOld').value,n=document.getElementById('renameNew').value.trim();
   if(!old||!n){showToast('⚠️ 请选择旧名字并输入新名字');return;}
   if(roster().includes(n)){showToast('⚠️ 名字已存在');return;}
+  tombs.add('player:'+old);
   db.players=db.players.map(p=>p===old?n:p);
   db.matches.forEach(m=>{if(m.scores&&old in m.scores){m.scores[n]=m.scores[old];delete m.scores[old];}});
   pushCloud();document.getElementById('renameNew').value='';renderAll();showToast(`✅ ${old} → ${n}`);
