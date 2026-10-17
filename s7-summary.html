@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>S7 德扑赛季总结</title>
+<style>
+:root {
+  --bg: #07080d;
+  --panel: rgba(16, 18, 28, 0.82);
+  --panel2: rgba(255,255,255,0.04);
+  --text: #f4f1ea;
+  --muted: rgba(244,241,234,.72);
+  --gold: #f2c87b;
+  --gold2: #b98a2e;
+  --cyan: #69d4ff;
+  --red: #ff6b6b;
+  --green: #8cffb0;
+  --violet: #b48cff;
+  --shadow: 0 20px 50px rgba(0,0,0,.45);
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  background:
+    radial-gradient(1200px 500px at 10% 5%, rgba(242,200,123,.14), transparent 60%),
+    radial-gradient(900px 600px at 90% 10%, rgba(105,212,255,.11), transparent 55%),
+    radial-gradient(800px 500px at 50% 80%, rgba(180,140,255,.10), transparent 60%),
+    linear-gradient(180deg, #04050a 0%, #090b12 100%);
+  color: var(--text);
+  font-family: Inter, "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  line-height: 1.55;
+  overflow-x: hidden;
+}
+body::before {
+  content:"";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px);
+  background-size: 80px 80px;
+  mask-image: radial-gradient(circle at center, black 35%, transparent 100%);
+  opacity: .25;
+}
+.wrap {
+  width: min(1400px, calc(100vw - 32px));
+  margin: 0 auto;
+  padding: 18px 0 36px;
+  position: relative;
+}
+.hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.1fr .9fr;
+  gap: 18px;
+  align-items: stretch;
+  min-height: 520px;
+  overflow: hidden;
+  border: 1px solid rgba(242,200,123,.28);
+  border-radius: 28px;
+  box-shadow: var(--shadow);
+  background: linear-gradient(180deg, rgba(10,12,20,.94), rgba(10,12,20,.82));
+}
+.hero-left {
+  padding: 30px;
+  z-index: 2;
+}
+.kicker {
+  color: var(--gold);
+  font-weight: 700;
+  letter-spacing: .28em;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+h1 {
+  margin: 10px 0 6px;
+  font-size: clamp(40px, 6vw, 76px);
+  line-height: .95;
+  letter-spacing: .02em;
+}
+.subtitle {
+  font-size: 18px;
+  color: var(--muted);
+  margin: 10px 0 18px;
+  max-width: 58ch;
+}
+.hero-note {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: rgba(242,200,123,.08);
+  border: 1px solid rgba(242,200,123,.25);
+  color: var(--gold);
+  font-weight: 700;
+  margin-bottom: 18px;
+}
+.hero-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 18px;
+}
+.stat {
+  background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 18px;
+  padding: 14px 14px 12px;
+  min-height: 108px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+}
+.stat span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: .08em;
+}
+.stat strong {
+  display: block;
+  margin: 8px 0 6px;
+  font-size: 26px;
+  color: var(--text);
+}
+.stat em {
+  color: var(--muted);
+  font-style: normal;
+  font-size: 12px;
+}
+.hero-right {
+  position: relative;
+  min-height: 520px;
+  background:
+    radial-gradient(circle at 50% 20%, rgba(242,200,123,.28), transparent 40%),
+    radial-gradient(circle at 50% 80%, rgba(105,212,255,.18), transparent 35%),
+    linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,0));
+  overflow: hidden;
+}
+.hero-img {
+  position: absolute;
+  inset: 18px;
+  border-radius: 24px;
+  overflow: hidden;
+  border: 1px solid rgba(242,200,123,.30);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.03), 0 20px 50px rgba(0,0,0,.55);
+}
+.hero-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* 海报是数据长图，缩略时只露顶部奖杯+标题+数据总览当引子，细节靠点击放大看 */
+  object-position: top center;
+  filter: saturate(1.04) contrast(1.03);
+  opacity: .96;
+}
+.hero-img::after {
+  content:"";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(3,5,8,.10), rgba(3,5,8,.55) 80%, rgba(3,5,8,.85));
+  pointer-events: none;
+}
+/* ── 点击放大 ── */
+.hero-img { cursor: zoom-in; }
+.hero-img .zoom-hint {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 3;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255,255,255,.92);
+  background: rgba(3,5,8,.55);
+  border: 1px solid rgba(242,200,123,.35);
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: none;
+  background: rgba(3,5,8,.94);
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.lightbox.open { display: block; }
+.lightbox-inner {
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 56px 16px 24px;
+}
+.lightbox img {
+  display: block;
+  max-width: 100%;
+  max-height: calc(100vh - 80px);
+  width: auto;
+  height: auto;
+  border-radius: 14px;
+  box-shadow: 0 24px 70px rgba(0,0,0,.7);
+  cursor: zoom-in;
+}
+/* 全宽模式：图片按屏宽铺满，纵向滚动看长图细节 */
+.lightbox.full .lightbox-inner { align-items: flex-start; }
+.lightbox.full img {
+  width: 100%;
+  max-width: 1024px;
+  max-height: none;
+  cursor: zoom-out;
+}
+.lightbox-close, .lightbox-mode {
+  position: fixed;
+  top: 14px;
+  z-index: 10001;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 20px;
+  border: 1px solid rgba(242,200,123,.35);
+  background: rgba(20,24,32,.92);
+  color: #f2c87b;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.lightbox-close { right: 14px; width: 40px; padding: 0; justify-content: center; }
+.lightbox-mode { left: 14px; }
+.lightbox-close:active, .lightbox-mode:active { background: rgba(40,46,58,.95); }
+body.lb-open { overflow: hidden; }
+.hero-caption {
+  position: absolute;
+  left: 28px;
+  right: 28px;
+  bottom: 24px;
+  z-index: 2;
+  display: grid;
+  gap: 8px;
+}
+.hero-caption .big {
+  font-size: 22px;
+  font-weight: 800;
+  color: #fff;
+}
+.hero-caption .small {
+  color: rgba(255,255,255,.78);
+  font-size: 13px;
+}
+.section {
+  margin-top: 18px;
+  padding: 22px;
+  border-radius: 24px;
+  background: var(--panel);
+  border: 1px solid rgba(255,255,255,.08);
+  box-shadow: var(--shadow);
+}
+.section h2 {
+  margin: 0 0 8px;
+  font-size: 28px;
+  letter-spacing: .02em;
+}
+.section .lead {
+  margin: 0 0 16px;
+  color: var(--muted);
+}
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.rank-card {
+  padding: 16px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+  border: 1px solid rgba(255,255,255,.08);
+}
+.rank-card h3 {
+  margin: 0 0 12px;
+  font-size: 18px;
+}
+.rrow {
+  display: grid;
+  grid-template-columns: 42px 1fr 92px 1.4fr;
+  gap: 10px;
+  align-items: center;
+  margin: 10px 0;
+}
+.rrank {
+  width: 32px; height: 32px; line-height: 32px;
+  text-align: center;
+  border-radius: 50%;
+  background: rgba(242,200,123,.14);
+  border: 1px solid rgba(242,200,123,.35);
+  color: var(--gold);
+  font-weight: 800;
+}
+.rname { font-weight: 700; }
+.rmeta { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+.rbar {
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.06);
+  overflow: hidden;
+  position: relative;
+}
+.rbar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(242,200,123,.25), rgba(242,200,123,.96));
+  box-shadow: 0 0 18px rgba(242,200,123,.35);
+}
+.tables {
+  overflow-x: auto;
+  border-radius: 18px;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 860px;
+}
+th, td {
+  padding: 12px 10px;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+th {
+  color: var(--gold);
+  font-size: 12px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+td.rank {
+  width: 54px;
+  color: var(--gold);
+  font-weight: 800;
+}
+td.player {
+  font-weight: 700;
+}
+td.score.pos { color: #8cffb0; }
+td.score.neg { color: #ff9aa0; }
+table tr:hover td {
+  background: rgba(255,255,255,.025);
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.08);
+  color: var(--muted);
+}
+.cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0,1fr));
+  gap: 14px;
+}
+.p-card {
+  border-radius: 20px;
+  padding: 16px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+  border: 1px solid rgba(255,255,255,.08);
+  position: relative;
+  overflow: hidden;
+  min-height: 246px;
+}
+.p-card::before {
+  content:"";
+  position: absolute;
+  inset: -2px;
+  background: radial-gradient(circle at top right, rgba(242,200,123,.18), transparent 45%);
+  pointer-events: none;
+}
+.p-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.p-badge {
+  font-size: 11px;
+  color: var(--gold);
+  border: 1px solid rgba(242,200,123,.28);
+  background: rgba(242,200,123,.08);
+  padding: 5px 9px;
+  border-radius: 999px;
+}
+.p-name {
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: .04em;
+}
+.p-title {
+  font-size: 22px;
+  font-weight: 900;
+  margin-top: 12px;
+  color: #fff;
+}
+.p-sub {
+  color: var(--gold);
+  margin-top: 2px;
+  font-size: 14px;
+}
+.p-bullets {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  color: rgba(255,255,255,.84);
+}
+.p-bullets li {
+  margin: 8px 0;
+  font-size: 13px;
+}
+.month-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+.month-card {
+  border-radius: 20px;
+  padding: 16px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+}
+.month {
+  color: var(--gold);
+  font-size: 12px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+.month-name {
+  font-size: 28px;
+  font-weight: 900;
+  margin-top: 8px;
+}
+.month-score {
+  font-size: 34px;
+  font-weight: 900;
+  margin-top: 6px;
+  color: #fff;
+}
+.month-sub {
+  color: var(--muted);
+  margin-top: 6px;
+}
+.month-note {
+  margin-top: 12px;
+  color: rgba(255,255,255,.82);
+}
+.footer-banner {
+  margin-top: 18px;
+  border-radius: 26px;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 15% 20%, rgba(105,212,255,.22), transparent 34%),
+    radial-gradient(circle at 85% 20%, rgba(242,200,123,.22), transparent 34%),
+    linear-gradient(90deg, rgba(12,15,25,.92), rgba(12,15,25,.72));
+  border: 1px solid rgba(242,200,123,.24);
+  text-align: center;
+  box-shadow: var(--shadow);
+}
+.footer-banner .line1 {
+  color: var(--muted);
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  font-size: 12px;
+}
+.footer-banner .line2 {
+  font-size: clamp(34px, 5vw, 64px);
+  font-weight: 900;
+  margin-top: 8px;
+  color: #fff;
+}
+.footer-banner .date {
+  display: inline-block;
+  margin-top: 10px;
+  border: 1px solid rgba(242,200,123,.35);
+  padding: 10px 18px;
+  border-radius: 999px;
+  color: var(--gold);
+  font-weight: 800;
+  letter-spacing: .18em;
+}
+.footer-banner .line3 {
+  margin-top: 12px;
+  color: rgba(255,255,255,.76);
+}
+@media (max-width: 1100px) {
+  .hero, .grid-2, .month-grid {
+    grid-template-columns: 1fr;
+  }
+  .cards {
+    grid-template-columns: repeat(2, minmax(0,1fr));
+  }
+  .hero-right {
+    min-height: 420px;
+  }
+}
+@media (max-width: 720px) {
+  .wrap { width: calc(100vw - 18px); }
+  .hero-left, .section, .footer-banner { padding: 16px; }
+  .hero-grid, .cards {
+    grid-template-columns: 1fr;
+  }
+  .rrow {
+    grid-template-columns: 32px 1fr 72px;
+  }
+  .rbar { display:none; }
+  table { min-width: 760px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <section class="hero">
+    <div class="hero-left">
+      <div class="kicker">HOLDEM · S7 SEASON REPORT</div>
+      <h1>S7 德扑赛季总结</h1>
+      <div class="subtitle">31 场、22 位正式牌手、88 万积分流动。这是一个冠军靠效率、季军靠爆发，而最精彩的故事属于一个总分几乎归零的人的赛季。</div>
+      <div class="hero-note">📅 统计范围：2026.07.29 - 2026.09.27 · 已过滤参赛 &lt;4 场牌手</div>
+      <div class="hero-grid">
+<div class="stat"><span>赛季日期</span><strong>2026.07.29 - 2026.09.27</strong><em>31 个正式比赛日</em></div>
+<div class="stat"><span>有效出场</span><strong>306</strong><em>非零分记录人次</em></div>
+<div class="stat"><span>正式牌手</span><strong>22</strong><em>过滤 &lt;4 场</em></div>
+<div class="stat"><span>积分流动</span><strong>886,288</strong><em>正分 +444,506 / 负分 -441,782</em></div>
+<div class="stat"><span>单场最高</span><strong>+13,016</strong><em>徽 / 2026-09-04</em></div>
+<div class="stat"><span>单场最低</span><strong>-14,494</strong><em>徽 / 2026-09-18</em></div>
+      </div>
+      <div class="chips">
+        <div class="chip">🏆 冠军主线：jingzhe</div>
+        <div class="chip">⚡ 爆发主线：熊 / 舜</div>
+        <div class="chip">🎢 剧情主线：徽 / 秦</div>
+        <div class="chip">🔥 收官主线：舜 / 琳 / 可轶</div>
+      </div>
+    </div>
+    <div class="hero-right">
+      <div class="hero-img" id="heroImg" role="button" tabindex="0" aria-label="放大查看海报">
+        <div class="zoom-hint">🔍 点击放大</div>
+        <img src="S7.jpg" alt="S7 赛季总结海报" width="1024" height="1536" loading="lazy" decoding="async" />
+      </div>
+      <div class="hero-caption">
+        <div class="big">冠军靠效率，季军靠爆发</div>
+        <div class="small">jingzhe 用 18 场打出全季最高场均，熊在 8 月单月 +27,176，而徽同时握着全季单场最高和最低。</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>一、最终积分榜</h2>
+    <p class="lead">按赛季总积分排序，完整展示 22 位正式牌手的最终名次、场次、正负场分布和场均表现。</p>
+    <div class="rank-card">
+      <h3>冠军主线 · Top 8</h3>
+<div class='rrow'><div class='rrank'>1</div><div class='rname'>jingzhe</div><div class='rmeta'>+20,108</div><div class='rbar'><span style='width:100.0%'></span></div></div>
+<div class='rrow'><div class='rrank'>2</div><div class='rname'>舜</div><div class='rmeta'>+18,234</div><div class='rbar'><span style='width:94.3%'></span></div></div>
+<div class='rrow'><div class='rrank'>3</div><div class='rname'>熊</div><div class='rmeta'>+15,505</div><div class='rbar'><span style='width:86.0%'></span></div></div>
+<div class='rrow'><div class='rrank'>4</div><div class='rname'>堃</div><div class='rmeta'>+8,078</div><div class='rbar'><span style='width:63.4%'></span></div></div>
+<div class='rrow'><div class='rrank'>5</div><div class='rname'>津艺</div><div class='rmeta'>+6,262</div><div class='rbar'><span style='width:57.9%'></span></div></div>
+<div class='rrow'><div class='rrank'>6</div><div class='rname'>秦</div><div class='rmeta'>+5,647</div><div class='rbar'><span style='width:56.0%'></span></div></div>
+<div class='rrow'><div class='rrank'>7</div><div class='rname'>琳</div><div class='rmeta'>+5,324</div><div class='rbar'><span style='width:55.0%'></span></div></div>
+<div class='rrow'><div class='rrank'>8</div><div class='rname'>志</div><div class='rmeta'>+3,673</div><div class='rbar'><span style='width:50.0%'></span></div></div>
+    </div>
+    <div class="tables" style="margin-top:14px;">
+      <table>
+        <thead>
+          <tr>
+            <th>排名</th><th>牌手</th><th>有效出场</th><th>总积分</th><th>正 / 负场</th><th>正分率</th><th>场均积分</th><th>单场最高</th><th>单场最低</th>
+          </tr>
+        </thead>
+        <tbody>
+<tr><td class='rank'>1</td><td class='player'>jingzhe</td><td>18</td><td class='score pos'>+20,108</td><td>11 / 7</td><td>61.1%</td><td>+1,117.1</td><td>+7,609</td><td>-2,640</td></tr>
+<tr><td class='rank'>2</td><td class='player'>舜</td><td>24</td><td class='score pos'>+18,234</td><td>17 / 7</td><td>70.8%</td><td>+759.8</td><td>+8,282</td><td>-6,954</td></tr>
+<tr><td class='rank'>3</td><td class='player'>熊</td><td>26</td><td class='score pos'>+15,505</td><td>12 / 14</td><td>46.2%</td><td>+596.3</td><td>+8,013</td><td>-9,800</td></tr>
+<tr><td class='rank'>4</td><td class='player'>堃</td><td>13</td><td class='score pos'>+8,078</td><td>10 / 3</td><td>76.9%</td><td>+621.4</td><td>+3,564</td><td>-4,317</td></tr>
+<tr><td class='rank'>5</td><td class='player'>津艺</td><td>9</td><td class='score pos'>+6,262</td><td>5 / 4</td><td>55.6%</td><td>+695.8</td><td>+3,618</td><td>-2,164</td></tr>
+<tr><td class='rank'>6</td><td class='player'>秦</td><td>30</td><td class='score pos'>+5,647</td><td>12 / 18</td><td>40.0%</td><td>+188.2</td><td>+8,780</td><td>-6,463</td></tr>
+<tr><td class='rank'>7</td><td class='player'>琳</td><td>26</td><td class='score pos'>+5,324</td><td>16 / 10</td><td>61.5%</td><td>+204.8</td><td>+7,490</td><td>-7,200</td></tr>
+<tr><td class='rank'>8</td><td class='player'>志</td><td>10</td><td class='score pos'>+3,673</td><td>6 / 4</td><td>60.0%</td><td>+367.3</td><td>+3,496</td><td>-2,402</td></tr>
+<tr><td class='rank'>9</td><td class='player'>Yang</td><td>7</td><td class='score pos'>+3,114</td><td>5 / 2</td><td>71.4%</td><td>+444.9</td><td>+2,381</td><td>-1,200</td></tr>
+<tr><td class='rank'>10</td><td class='player'>Leo</td><td>7</td><td class='score pos'>+2,254</td><td>4 / 3</td><td>57.1%</td><td>+322.0</td><td>+4,400</td><td>-3,200</td></tr>
+<tr><td class='rank'>11</td><td class='player'>Holly</td><td>5</td><td class='score pos'>+1,658</td><td>4 / 1</td><td>80.0%</td><td>+331.6</td><td>+1,483</td><td>-833</td></tr>
+<tr><td class='rank'>12</td><td class='player'>思思</td><td>9</td><td class='score neg'>-362</td><td>5 / 4</td><td>55.6%</td><td>-40.2</td><td>+5,746</td><td>-8,000</td></tr>
+<tr><td class='rank'>13</td><td class='player'>徽</td><td>27</td><td class='score neg'>-962</td><td>17 / 10</td><td>63.0%</td><td>-35.6</td><td>+13,016</td><td>-14,494</td></tr>
+<tr><td class='rank'>14</td><td class='player'>澍泽</td><td>10</td><td class='score neg'>-2,805</td><td>3 / 7</td><td>30.0%</td><td>-280.5</td><td>+5,970</td><td>-3,020</td></tr>
+<tr><td class='rank'>15</td><td class='player'>可轶</td><td>9</td><td class='score neg'>-2,822</td><td>5 / 4</td><td>55.6%</td><td>-313.6</td><td>+4,968</td><td>-4,000</td></tr>
+<tr><td class='rank'>16</td><td class='player'>韬</td><td>17</td><td class='score neg'>-3,910</td><td>8 / 9</td><td>47.1%</td><td>-230.0</td><td>+7,614</td><td>-5,200</td></tr>
+<tr><td class='rank'>17</td><td class='player'>烨</td><td>18</td><td class='score neg'>-4,002</td><td>8 / 10</td><td>44.4%</td><td>-222.3</td><td>+8,687</td><td>-8,356</td></tr>
+<tr><td class='rank'>18</td><td class='player'>天澄</td><td>4</td><td class='score neg'>-6,322</td><td>1 / 3</td><td>25.0%</td><td>-1,580.5</td><td>+1,678</td><td>-4,400</td></tr>
+<tr><td class='rank'>19</td><td class='player'>旨</td><td>7</td><td class='score neg'>-7,265</td><td>3 / 4</td><td>42.9%</td><td>-1,037.9</td><td>+2,621</td><td>-5,638</td></tr>
+<tr><td class='rank'>20</td><td class='player'>丞</td><td>7</td><td class='score neg'>-12,794</td><td>2 / 5</td><td>28.6%</td><td>-1,827.7</td><td>+1,774</td><td>-7,800</td></tr>
+<tr><td class='rank'>21</td><td class='player'>昭明</td><td>6</td><td class='score neg'>-17,821</td><td>2 / 4</td><td>33.3%</td><td>-2,970.2</td><td>+4,662</td><td>-12,000</td></tr>
+<tr><td class='rank'>22</td><td class='player'>龙</td><td>16</td><td class='score neg'>-28,215</td><td>6 / 10</td><td>37.5%</td><td>-1,763.4</td><td>+6,962</td><td>-12,000</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>二、场均积分榜</h2>
+    <p class="lead">为了避免小样本失真，这里只统计有效出场 ≥ 8 场的牌手（共 15 人）。场均高不代表总分第一，但说明每次上桌都很值。</p>
+    <div class="rank-card">
+      <h3>效率主线 · Top 8</h3>
+<div class='rrow'><div class='rrank'>1</div><div class='rname'>jingzhe</div><div class='rmeta'>+1,117.1</div><div class='rbar'><span style='width:100.0%'></span></div></div>
+<div class='rrow'><div class='rrank'>2</div><div class='rname'>舜</div><div class='rmeta'>+759.8</div><div class='rbar'><span style='width:80.8%'></span></div></div>
+<div class='rrow'><div class='rrank'>3</div><div class='rname'>津艺</div><div class='rmeta'>+695.8</div><div class='rbar'><span style='width:77.3%'></span></div></div>
+<div class='rrow'><div class='rrank'>4</div><div class='rname'>堃</div><div class='rmeta'>+621.4</div><div class='rbar'><span style='width:73.3%'></span></div></div>
+<div class='rrow'><div class='rrank'>5</div><div class='rname'>熊</div><div class='rmeta'>+596.3</div><div class='rbar'><span style='width:72.0%'></span></div></div>
+<div class='rrow'><div class='rrank'>6</div><div class='rname'>志</div><div class='rmeta'>+367.3</div><div class='rbar'><span style='width:59.6%'></span></div></div>
+<div class='rrow'><div class='rrank'>7</div><div class='rname'>琳</div><div class='rmeta'>+204.8</div><div class='rbar'><span style='width:50.9%'></span></div></div>
+<div class='rrow'><div class='rrank'>8</div><div class='rname'>秦</div><div class='rmeta'>+188.2</div><div class='rbar'><span style='width:50.0%'></span></div></div>
+    </div>
+    <div class="tables" style="margin-top:14px;">
+      <table>
+        <thead>
+          <tr>
+            <th>排名</th><th>牌手</th><th>有效出场</th><th>场均积分</th><th>总积分</th><th>正 / 负场</th><th>正分率</th><th>单场最高</th><th>单场最低</th>
+          </tr>
+        </thead>
+        <tbody>
+<tr><td class='rank'>1</td><td class='player'>jingzhe</td><td>18</td><td class='score pos'>+1,117</td><td>+20,108</td><td>11 / 7</td><td>61.1%</td><td>+7,609</td><td>-2,640</td></tr>
+<tr><td class='rank'>2</td><td class='player'>舜</td><td>24</td><td class='score pos'>+760</td><td>+18,234</td><td>17 / 7</td><td>70.8%</td><td>+8,282</td><td>-6,954</td></tr>
+<tr><td class='rank'>3</td><td class='player'>津艺</td><td>9</td><td class='score pos'>+696</td><td>+6,262</td><td>5 / 4</td><td>55.6%</td><td>+3,618</td><td>-2,164</td></tr>
+<tr><td class='rank'>4</td><td class='player'>堃</td><td>13</td><td class='score pos'>+621</td><td>+8,078</td><td>10 / 3</td><td>76.9%</td><td>+3,564</td><td>-4,317</td></tr>
+<tr><td class='rank'>5</td><td class='player'>熊</td><td>26</td><td class='score pos'>+596</td><td>+15,505</td><td>12 / 14</td><td>46.2%</td><td>+8,013</td><td>-9,800</td></tr>
+<tr><td class='rank'>6</td><td class='player'>志</td><td>10</td><td class='score pos'>+367</td><td>+3,673</td><td>6 / 4</td><td>60.0%</td><td>+3,496</td><td>-2,402</td></tr>
+<tr><td class='rank'>7</td><td class='player'>琳</td><td>26</td><td class='score pos'>+205</td><td>+5,324</td><td>16 / 10</td><td>61.5%</td><td>+7,490</td><td>-7,200</td></tr>
+<tr><td class='rank'>8</td><td class='player'>秦</td><td>30</td><td class='score pos'>+188</td><td>+5,647</td><td>12 / 18</td><td>40.0%</td><td>+8,780</td><td>-6,463</td></tr>
+<tr><td class='rank'>9</td><td class='player'>徽</td><td>27</td><td class='score neg'>-36</td><td>-962</td><td>17 / 10</td><td>63.0%</td><td>+13,016</td><td>-14,494</td></tr>
+<tr><td class='rank'>10</td><td class='player'>思思</td><td>9</td><td class='score neg'>-40</td><td>-362</td><td>5 / 4</td><td>55.6%</td><td>+5,746</td><td>-8,000</td></tr>
+<tr><td class='rank'>11</td><td class='player'>烨</td><td>18</td><td class='score neg'>-222</td><td>-4,002</td><td>8 / 10</td><td>44.4%</td><td>+8,687</td><td>-8,356</td></tr>
+<tr><td class='rank'>12</td><td class='player'>韬</td><td>17</td><td class='score neg'>-230</td><td>-3,910</td><td>8 / 9</td><td>47.1%</td><td>+7,614</td><td>-5,200</td></tr>
+<tr><td class='rank'>13</td><td class='player'>澍泽</td><td>10</td><td class='score neg'>-280</td><td>-2,805</td><td>3 / 7</td><td>30.0%</td><td>+5,970</td><td>-3,020</td></tr>
+<tr><td class='rank'>14</td><td class='player'>可轶</td><td>9</td><td class='score neg'>-314</td><td>-2,822</td><td>5 / 4</td><td>55.6%</td><td>+4,968</td><td>-4,000</td></tr>
+<tr><td class='rank'>15</td><td class='player'>龙</td><td>16</td><td class='score neg'>-1,763</td><td>-28,215</td><td>6 / 10</td><td>37.5%</td><td>+6,962</td><td>-12,000</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>三、波动排行榜</h2>
+    <p class="lead">标准差越高，代表单场起伏越大；越低，代表风格越稳。这个榜最适合用来讲「心电图」和「稳如老狗」。</p>
+    <div class="rank-card">
+      <h3>波动主线 · Top 8</h3>
+<div class='rrow'><div class='rrank'>1</div><div class='rname'>徽</div><div class='rmeta'>5,646.8</div><div class='rbar'><span style='width:100.0%'></span></div></div>
+<div class='rrow'><div class='rrank'>2</div><div class='rname'>昭明</div><div class='rmeta'>5,245.0</div><div class='rbar'><span style='width:88.5%'></span></div></div>
+<div class='rrow'><div class='rrank'>3</div><div class='rname'>熊</div><div class='rmeta'>4,700.5</div><div class='rbar'><span style='width:72.8%'></span></div></div>
+<div class='rrow'><div class='rrank'>4</div><div class='rname'>烨</div><div class='rmeta'>4,330.6</div><div class='rbar'><span style='width:62.2%'></span></div></div>
+<div class='rrow'><div class='rrank'>5</div><div class='rname'>龙</div><div class='rmeta'>4,240.1</div><div class='rbar'><span style='width:59.6%'></span></div></div>
+<div class='rrow'><div class='rrank'>6</div><div class='rname'>舜</div><div class='rmeta'>3,999.7</div><div class='rbar'><span style='width:52.7%'></span></div></div>
+<div class='rrow'><div class='rrank'>7</div><div class='rname'>秦</div><div class='rmeta'>3,946.6</div><div class='rbar'><span style='width:51.1%'></span></div></div>
+<div class='rrow'><div class='rrank'>8</div><div class='rname'>韬</div><div class='rmeta'>3,906.8</div><div class='rbar'><span style='width:50.0%'></span></div></div>
+    </div>
+    <div class="tables" style="margin-top:14px;">
+      <table>
+        <thead>
+          <tr>
+            <th>排名</th><th>牌手</th><th>有效出场</th><th>波动（标准差）</th><th>总积分</th><th>单场最高</th><th>单场最低</th><th>正分率</th>
+          </tr>
+        </thead>
+        <tbody>
+<tr><td class='rank'>1</td><td class='player'>徽</td><td>27</td><td class='score'>5,646.8</td><td class='score neg'>-962</td><td>+13,016</td><td>-14,494</td><td>63.0%</td></tr>
+<tr><td class='rank'>2</td><td class='player'>昭明</td><td>6</td><td class='score'>5,245.0</td><td class='score neg'>-17,821</td><td>+4,662</td><td>-12,000</td><td>33.3%</td></tr>
+<tr><td class='rank'>3</td><td class='player'>熊</td><td>26</td><td class='score'>4,700.5</td><td class='score pos'>+15,505</td><td>+8,013</td><td>-9,800</td><td>46.2%</td></tr>
+<tr><td class='rank'>4</td><td class='player'>烨</td><td>18</td><td class='score'>4,330.6</td><td class='score neg'>-4,002</td><td>+8,687</td><td>-8,356</td><td>44.4%</td></tr>
+<tr><td class='rank'>5</td><td class='player'>龙</td><td>16</td><td class='score'>4,240.1</td><td class='score neg'>-28,215</td><td>+6,962</td><td>-12,000</td><td>37.5%</td></tr>
+<tr><td class='rank'>6</td><td class='player'>舜</td><td>24</td><td class='score'>3,999.7</td><td class='score pos'>+18,234</td><td>+8,282</td><td>-6,954</td><td>70.8%</td></tr>
+<tr><td class='rank'>7</td><td class='player'>秦</td><td>30</td><td class='score'>3,946.6</td><td class='score pos'>+5,647</td><td>+8,780</td><td>-6,463</td><td>40.0%</td></tr>
+<tr><td class='rank'>8</td><td class='player'>韬</td><td>17</td><td class='score'>3,906.8</td><td class='score neg'>-3,910</td><td>+7,614</td><td>-5,200</td><td>47.1%</td></tr>
+<tr><td class='rank'>9</td><td class='player'>思思</td><td>9</td><td class='score'>3,867.2</td><td class='score neg'>-362</td><td>+5,746</td><td>-8,000</td><td>55.6%</td></tr>
+<tr><td class='rank'>10</td><td class='player'>琳</td><td>26</td><td class='score'>3,171.7</td><td class='score pos'>+5,324</td><td>+7,490</td><td>-7,200</td><td>61.5%</td></tr>
+<tr><td class='rank'>11</td><td class='player'>旨</td><td>7</td><td class='score'>3,148.0</td><td class='score neg'>-7,265</td><td>+2,621</td><td>-5,638</td><td>42.9%</td></tr>
+<tr><td class='rank'>12</td><td class='player'>丞</td><td>7</td><td class='score'>2,951.6</td><td class='score neg'>-12,794</td><td>+1,774</td><td>-7,800</td><td>28.6%</td></tr>
+<tr><td class='rank'>13</td><td class='player'>澍泽</td><td>10</td><td class='score'>2,743.8</td><td class='score neg'>-2,805</td><td>+5,970</td><td>-3,020</td><td>30.0%</td></tr>
+<tr><td class='rank'>14</td><td class='player'>可轶</td><td>9</td><td class='score'>2,608.6</td><td class='score neg'>-2,822</td><td>+4,968</td><td>-4,000</td><td>55.6%</td></tr>
+<tr><td class='rank'>15</td><td class='player'>jingzhe</td><td>18</td><td class='score'>2,459.3</td><td class='score pos'>+20,108</td><td>+7,609</td><td>-2,640</td><td>61.1%</td></tr>
+<tr><td class='rank'>16</td><td class='player'>Leo</td><td>7</td><td class='score'>2,367.6</td><td class='score pos'>+2,254</td><td>+4,400</td><td>-3,200</td><td>57.1%</td></tr>
+<tr><td class='rank'>17</td><td class='player'>津艺</td><td>9</td><td class='score'>2,254.4</td><td class='score pos'>+6,262</td><td>+3,618</td><td>-2,164</td><td>55.6%</td></tr>
+<tr><td class='rank'>18</td><td class='player'>天澄</td><td>4</td><td class='score'>2,201.3</td><td class='score neg'>-6,322</td><td>+1,678</td><td>-4,400</td><td>25.0%</td></tr>
+<tr><td class='rank'>19</td><td class='player'>堃</td><td>13</td><td class='score'>2,143.3</td><td class='score pos'>+8,078</td><td>+3,564</td><td>-4,317</td><td>76.9%</td></tr>
+<tr><td class='rank'>20</td><td class='player'>志</td><td>10</td><td class='score'>1,739.0</td><td class='score pos'>+3,673</td><td>+3,496</td><td>-2,402</td><td>60.0%</td></tr>
+<tr><td class='rank'>21</td><td class='player'>Yang</td><td>7</td><td class='score'>1,115.7</td><td class='score pos'>+3,114</td><td>+2,381</td><td>-1,200</td><td>71.4%</td></tr>
+<tr><td class='rank'>22</td><td class='player'>Holly</td><td>5</td><td class='score'>757.7</td><td class='score pos'>+1,658</td><td>+1,483</td><td>-833</td><td>80.0%</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="grid-2">
+    <section class="section">
+      <h2>四、连胜纪录</h2>
+      <p class="lead">看谁能把状态连续接上，谁是赛季里的「节奏保持器」。</p>
+      <div class="tables">
+        <table style="min-width:0">
+          <thead>
+            <tr><th>排名</th><th>牌手</th><th>最长连胜</th><th>总积分</th><th>有效出场</th></tr>
+          </thead>
+          <tbody>
+<tr><td class='rank'>1</td><td class='player'>堃</td><td>8</td><td>+8,078</td><td>13</td></tr>
+<tr><td class='rank'>2</td><td class='player'>徽</td><td>6</td><td>-962</td><td>27</td></tr>
+<tr><td class='rank'>3</td><td class='player'>舜</td><td>5</td><td>+18,234</td><td>24</td></tr>
+<tr><td class='rank'>4</td><td class='player'>琳</td><td>4</td><td>+5,324</td><td>26</td></tr>
+<tr><td class='rank'>5</td><td class='player'>Yang</td><td>4</td><td>+3,114</td><td>7</td></tr>
+<tr><td class='rank'>6</td><td class='player'>jingzhe</td><td>3</td><td>+20,108</td><td>18</td></tr>
+<tr><td class='rank'>7</td><td class='player'>津艺</td><td>3</td><td>+6,262</td><td>9</td></tr>
+<tr><td class='rank'>8</td><td class='player'>秦</td><td>3</td><td>+5,647</td><td>30</td></tr>
+<tr><td class='rank'>9</td><td class='player'>Leo</td><td>3</td><td>+2,254</td><td>7</td></tr>
+<tr><td class='rank'>10</td><td class='player'>Holly</td><td>3</td><td>+1,658</td><td>5</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+    <section class="section">
+      <h2>五、连负纪录</h2>
+      <p class="lead">看谁最容易掉进低谷，谁是赛季里最典型的「风暴源」。</p>
+      <div class="tables">
+        <table style="min-width:0">
+          <thead>
+            <tr><th>排名</th><th>牌手</th><th>最长连负</th><th>总积分</th><th>有效出场</th></tr>
+          </thead>
+          <tbody>
+<tr><td class='rank'>1</td><td class='player'>秦</td><td>7</td><td>+5,647</td><td>30</td></tr>
+<tr><td class='rank'>2</td><td class='player'>澍泽</td><td>6</td><td>-2,805</td><td>10</td></tr>
+<tr><td class='rank'>3</td><td class='player'>龙</td><td>4</td><td>-28,215</td><td>16</td></tr>
+<tr><td class='rank'>4</td><td class='player'>昭明</td><td>3</td><td>-17,821</td><td>6</td></tr>
+<tr><td class='rank'>5</td><td class='player'>丞</td><td>3</td><td>-12,794</td><td>7</td></tr>
+<tr><td class='rank'>6</td><td class='player'>韬</td><td>3</td><td>-3,910</td><td>17</td></tr>
+<tr><td class='rank'>7</td><td class='player'>志</td><td>3</td><td>+3,673</td><td>10</td></tr>
+<tr><td class='rank'>8</td><td class='player'>熊</td><td>3</td><td>+15,505</td><td>26</td></tr>
+<tr><td class='rank'>9</td><td class='player'>旨</td><td>2</td><td>-7,265</td><td>7</td></tr>
+<tr><td class='rank'>10</td><td class='player'>天澄</td><td>2</td><td>-6,322</td><td>4</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <section class="section">
+    <h2>六、月度 MVP</h2>
+    <p class="lead">赛季节奏故事：谁在 7 月起步，谁在 8 月接管，谁在 9 月收官。</p>
+    <div class="month-grid">
+    <div class="month-card">
+      <div class="month">7月 MVP</div>
+      <div class="month-name">jingzhe</div>
+      <div class="month-score">+6,809</div>
+      <div class="month-sub">亚军：秦 +5,594</div>
+      <div class="month-note">该月最惨：徽 -12,731</div>
+    </div>
+    <div class="month-card">
+      <div class="month">8月 MVP</div>
+      <div class="month-name">熊</div>
+      <div class="month-score">+27,176</div>
+      <div class="month-sub">亚军：徽 +11,914</div>
+      <div class="month-note">该月最惨：龙 -16,884</div>
+    </div>
+    <div class="month-card">
+      <div class="month">9月 MVP</div>
+      <div class="month-name">舜</div>
+      <div class="month-score">+16,095</div>
+      <div class="month-sub">亚军：琳 +12,624</div>
+      <div class="month-note">该月最惨：昭明 -13,338</div>
+    </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>七、赛季角色卡</h2>
+    <p class="lead">下面是每位正式牌手的称号与数据依据，按最终名次排列。</p>
+    <div class="cards">
+    <article class="p-card">
+      <div class="p-top">
+        <div class="p-badge">冠军主线</div>
+        <div class="p-name">jingzhe</div>
+      </div>
+      <div class="p-title">稳态收割机</div>
+      <div class="p-sub">赛季 MVP</div>
+      <ul class="p-bullets"><li>总分 +20,108，18 次有效出场，正分率 61.1%，赛季第 1 名</li><li>场均 +1,117.1（场均榜第 1），单场最高 +7,609（07.30），最低 -2,640（08.22）</li><li>最长 3 连正合计 +9,344，最长 2 连负；波动 2,459.3（第 15）；2 次单日第一、7 次单日前三</li><li>最佳月份 9 月 +9,344</li></ul>
+    </article>
+    <article class="p-card">
+      <div class="p-top">
+        <div class="p-badge">高光主线</div>
+        <div class="p-name">舜</div>
+      </div>
+      <div class="p-title">九月统治者</div>
+      <div class="p-sub">亚军 · 收官之王</div>
+      <ul class="p-bullets"><li>总分 +18,234，24 次有效出场，正分率 70.8%，赛季第 2 名</li><li>场均 +759.8（场均榜第 2），单场最高 +8,282（08.21），最低 -6,954（08.22）</li><li>最长 5 连正合计 +14,356，最长 2 连负；波动 3,999.7（第 6）；5 次单日第一、12 次单日前三</li><li>最佳月份 9 月 +16,095</li></ul>
+    </article>
+    <article class="p-card">
+      <div class="p-top">
+        <div class="p-badge">爆发主线</div>
+        <div class="p-name">熊</div>
+      </div>
+      <div class="p-title">八月风暴</div>
+      <div class="p-sub">单日第一王</div>
+      <ul class="p-bullets"><li>总分 +15,505，26 次有效出场，正分率 46.2%，赛季第 3 名</li><li>场均 +596.3（场均榜第 5），单场最高 +8,013（08.29），最低 -9,800（09.11）</li><li>最长 2 连正合计 +9,728，最长 3 连负；波动 4,700.5（第 3）；6 次单日第一、12 次单日前三</li><li>最佳月份 8 月 +27,176</li></ul>
+    </article>
+    <article class="p-card">
+      <div class="p-top">
+        <div class="p-badge">连胜主线</div>
+        <div class="p-name">堃</div>
+      </div>
+      <div class="p-title">八连不坠</div>
+      <div class="p-sub">赛季最长连胜</div>
+      <ul class="p-bullets"><li>总分 +8,078，13 次有效出场，正分率 76.9%，赛季第 4 名</li><li>场均 +621.4（场均榜第 4），单场最高 +3,564（07.30），最低 -4,317（08.23）</li><li>最长 8 连正合计 +12,933，最长 2 连负；波动 2,143.3（第 19）；1 次单日第一、4 次单日前三</li><li>最佳月份 8 月 +6,426</li></ul>
+    </article>
+    <article class="p-card">
+      <div class="p-top">
+        <div class="p-badge">效率主线</div>
+        <div class="p-name">津艺</div>
+      </div>
+      <div class="p-title">轻装高效</div>
+      <div class="p-sub">小样本高产</div>
+      <ul class="p-bullets"><li>总分 +6,262，9 次有效出场，正分率 55.6%，赛季第 5 名</li><li>场均 +695.8（场均榜第 3），单场最高 +3,618（09.07），最低 -2,164（09.26）</li><li>最长 3 连正合计 +8,986，最长 1 连负；波动 2,254.4（第 17）；2 次单日前三</li><li>最佳月份 9 月 +5,587</li></ul>
+    </article>
+    <article class="p-card">
+      <div class="p-top">
+        <div class="p-badge">剧情主线</div>
+        <div class="p-name">秦</div>
+      </div>
+      <div class="p-title">三十场不缺席</div>
+      <div class="p-sub">出勤王 · 逆风翻正</div>
+      <ul class="p-bullets"><li>总分 +5,647，30 次有效出场，正分率 40.0%，赛季第 6 名</li><li>场均 +188.2（场均榜第 8），单场最高 +8,780（08.30），最低 -6,463（09.18）</li><li>最长 3 连正合计 +8,669，最长 7 连负；波动 3,946.6（第 7）；3 次单日第一、9 次单日前三</li><li>最佳月份 9 月 +9,913</li></ul>
+    </article>
+    <article class="p-card">
+      <div class="p-top">
+        <div class="p-badge">卫冕主线</div>
+        <div class="p-name">琳</div>
+      </div>
+      <div class="p-title">王座守望者</div>
+      <div class="p-sub">上届冠军</div>
+      <ul class="p-bullets"><li>总分 +5,324，26 次有效出场，正分率 61.5%，赛季第 7 名</li><li>场均 +204.8（场均榜第 7），单场最高 +7,490（09.18），最低 -7,200（07.31）</li><li>最长 4 连正合计 +13,712，最长 2 连负；波动 3,171.7（第 10）；2 次单日第一、8 次单日前三</li><li>最佳月份 9 月 +12,624</li></ul>
+    </article>
+    <article class="p-card">
+      <div class="p-top">
+        <div class="p-badge">稳健主线</div>
+        <div class="p-name">志</div>
+      </div>
+      <div class="p-title">十场小胜</div>
+      <div class="p-sub">低调正收益</div>
+      <ul class="p-bullets"><li>总分 +3,673，10 次有效出场，正分率 60.0%，赛季第 8 名</li><li>场均 +367.3（场均榜第 6），单场最高 +3,496（07.30），最低 -2,402（09.25）</li><li>最长 2 连正合计 +3,825，最长 3 连负；波动 1,739.0（第 20）；1 次单日前三</li><li>最佳月份 7 月 +3,825</li></ul>
+    </article>
+    <article class="p-card">
+      <div class="p-top">
+        <div class="p-badge">效率主线</div>
+        <div class="p-name">Yang</div>
+      </div>
+      <div class="p-title">七战四连</div>
+      <div class="p-sub">精准出勤</div>
+      <ul class="p-bullets"><li>总分 +3,114，7 次有效出场，正分率 71.4%，赛季第 9 名</li><li>场均 +444.9，单场最高 +2,381（07.31），最低 -1,200（09.26）</li><li>最长 4 连正合计 +4,199，最长 1 连负；波动 1,115.7（第 21）；1 次单日前三</li><li>最佳月份 7 月 +2,329</li></ul>
+    </article>
+    <article class="p-card">
+      <div class="p-top">
+        <div class="p-badge">轻量主线</div>
+        <div class="p-name">Leo</div>
+      </div>
+      <div class="p-title">点到即走</div>
+      <div class="p-sub">短线选手</div>
+      <ul class="p-bullets"><li>总分 +2,254，7 次有效出场，正分率 57.1%，赛季第 10 名</li><li>场均 +322.0，单场最高 +4,400（08.05），最低 -3,200（08.02）</li><li>最长 3 连正合计 +3,963，最长 2 连负；波动 2,367.6（第 16）；2 次单日前三</li><li>最佳月份 7 月 +3,186</li></ul>
+    </article>
+    <article class="p-card">
+      <div class="p-top">
+        <div class="p-badge">稳定主线</div>
+        <div class="p-name">Holly</div>
+      </div>
+      <div class="p-title">八成命中</div>
+      <div class="p-sub">全季最稳的手</div>
+      <ul class="p-bullets"><li>总分 +1,658，5 次有效出场，正分率 80.0%，赛季第 11 名</li><li>场均 +331.6，单场最高 +1,483（07.30），最低 -833（08.04）</li><li>最长 3 连正合计 +2,477，最长 1 连负；波动 757.7（第 22）</li><li>最佳月份 7 月 +2,109</li></ul>
+    </article>
+    <article class="p-card">
+      <div class="p-top">
+        <div class="p-badge">拉锯主线</div>
+        <div class="p-name">思思</div>
+      </div>
+      <div class="p-title">五五拉锯</div>
+      <div class="p-sub">几乎归零</div>
+      <ul class="p-bullets"><li>总分 -362，9 次有效出场，正分率 55.6%，赛季第 12 名</li><li>场均 -40.2（场均榜第 10），单场最高 +5,746（09.19），最低 -8,000（08.19）</li><li>最长 3 连正合计 +12,125，最长 2 连负；波动 3,867.2（第 9）；1 次单日第一、3 次单日前三</li><li>最佳月份 9 月 +6,088</li></ul>
+    </article>
+    <article class="p-card">
+      <div class="p-top">
+        <div class="p-badge">剧情主线</div>
+        <div class="p-name">徽</div>
+      </div>
+      <div class="p-title">正负一万三</div>
+      <div class="p-sub">双向纪录保持者</div>
+      <ul class="p-bullets"><li>总分 -962，27 次有效出场，正分率 63.0%，赛季第 13 名</li><li>场均 -35.6（场均榜第 9），单场最高 +13,016（09.04），最低 -14,494（09.18）</li><li>最长 6 连正合计 +12,516，最长 2 连负；波动 5,646.8（第 1）；3 次单日第一、8 次单日前三</li><li>最佳月份 8 月 +11,914</li></ul>
+    </article>
+    <article class="p-card">
+      <div class="p-top">
+        <div class="p-badge">低谷主线</div>
+        <div class="p-name">澍泽</div>
+      </div>
+      <div class="p-title">六连寒冬</div>
+      <div class="p-sub">命中率失守</div>
+      <ul class="p-bullets"><li>总分 -2,805，10 次有效出场，正分率 30.0%，赛季第 14 名</li><li>场均 -280.5（场均榜第 13），单场最高 +5,970（09.11），最低 -3,020（08.16）</li><li>最长 2 连正合计 +3,757，最长 6 连负；波动 2,743.8（第 13）；1 次单日第一、2 次单日前三</li><li>最佳月份 7 月 +3,757</li></ul>
+    </article>
+    <article class="p-card">
+      <div class="p-top">
+        <div class="p-badge">收尾主线</div>
+        <div class="p-name">可轶</div>
+      </div>
+      <div class="p-title">末段回暖</div>
+      <div class="p-sub">赛季尾声发力</div>
+      <ul class="p-bullets"><li>总分 -2,822，9 次有效出场，正分率 55.6%，赛季第 15 名</li><li>场均 -313.6（场均榜第 14），单场最高 +4,968（09.26），最低 -4,000（09.04）</li><li>最长 2 连正合计 +1,598，最长 2 连负；波动 2,608.6（第 14）；1 次单日第一、1 次单日前三</li><li>最佳月份 8 月 +343</li></ul>
+    </article>
+    <article class="p-card">
+      <div class="p-top">
+        <div class="p-badge">拉锯主线</div>
+        <div class="p-name">韬</div>
+      </div>
+      <div class="p-title">半正半负</div>
+      <div class="p-sub">中游常客</div>
+      <ul class="p-bullets"><li>总分 -3,910，17 次有效出场，正分率 47.1%，赛季第 16 名</li><li>场均 -230.0（场均榜第 12），单场最高 +7,614（09.04），最低 -5,200（08.22）</li><li>最长 2 连正合计 +7,101，最长 3 连负；波动 3,906.8（第 8）；1 次单日第一、4 次单日前三</li><li>最佳月份 9 月 +3,526</li></ul>
+    </article>
+    <article class="p-card">
+      <div class="p-top">
+        <div class="p-badge">波动主线</div>
+        <div class="p-name">烨</div>
+      </div>
+      <div class="p-title">八千对冲</div>
+      <div class="p-sub">大赢大输</div>
+      <ul class="p-bullets"><li>总分 -4,002，18 次有效出场，正分率 44.4%，赛季第 17 名</li><li>场均 -222.3（场均榜第 11），单场最高 +8,687（08.22），最低 -8,356（09.05）</li><li>最长 2 连正合计 +4,345，最长 2 连负；波动 4,330.6（第 4）；2 次单日第一、6 次单日前三</li><li>最佳月份 8 月 +8,020</li></ul>
+    </article>
+    <article class="p-card">
+      <div class="p-top">
+        <div class="p-badge">短打主线</div>
+        <div class="p-name">天澄</div>
+      </div>
+      <div class="p-title">四场即止</div>
+      <div class="p-sub">小样本失手</div>
+      <ul class="p-bullets"><li>总分 -6,322，4 次有效出场，正分率 25.0%，赛季第 18 名</li><li>场均 -1,580.5，单场最高 +1,678（08.22），最低 -4,400（08.30）</li><li>最长 1 连正，最长 2 连负；波动 2,201.3（第 18）</li><li>表现最好的月份 8 月 -6,322（全季无盈利月）</li></ul>
+    </article>
+    <article class="p-card">
+      <div class="p-top">
+        <div class="p-badge">试探主线</div>
+        <div class="p-name">旨</div>
+      </div>
+      <div class="p-title">七场摸索</div>
+      <div class="p-sub">未找到节奏</div>
+      <ul class="p-bullets"><li>总分 -7,265，7 次有效出场，正分率 42.9%，赛季第 19 名</li><li>场均 -1,037.9，单场最高 +2,621（07.31），最低 -5,638（08.04）</li><li>最长 2 连正合计 +4,403，最长 2 连负；波动 3,148.0（第 11）；1 次单日第一、3 次单日前三</li><li>最佳月份 7 月 +1,406</li></ul>
+    </article>
+    <article class="p-card">
+      <div class="p-top">
+        <div class="p-badge">低谷主线</div>
+        <div class="p-name">丞</div>
+      </div>
+      <div class="p-title">逆风七场</div>
+      <div class="p-sub">场均垫底区</div>
+      <ul class="p-bullets"><li>总分 -12,794，7 次有效出场，正分率 28.6%，赛季第 20 名</li><li>场均 -1,827.7，单场最高 +1,774（08.19），最低 -7,800（09.11）</li><li>最长 1 连正，最长 3 连负；波动 2,951.6（第 12）</li><li>表现最好的月份 8 月 -56（全季无盈利月）</li></ul>
+    </article>
+    <article class="p-card">
+      <div class="p-top">
+        <div class="p-badge">风暴主线</div>
+        <div class="p-name">昭明</div>
+      </div>
+      <div class="p-title">六场失血</div>
+      <div class="p-sub">场均最深谷</div>
+      <ul class="p-bullets"><li>总分 -17,821，6 次有效出场，正分率 33.3%，赛季第 21 名</li><li>场均 -2,970.2，单场最高 +4,662（09.26），最低 -12,000（09.05）</li><li>最长 1 连正，最长 3 连负；波动 5,245.0（第 2）；2 次单日前三</li><li>表现最好的月份 8 月 -4,483（全季无盈利月）</li></ul>
+    </article>
+    <article class="p-card">
+      <div class="p-top">
+        <div class="p-badge">风暴主线</div>
+        <div class="p-name">龙</div>
+      </div>
+      <div class="p-title">赛季最深谷</div>
+      <div class="p-sub">垫底</div>
+      <ul class="p-bullets"><li>总分 -28,215，16 次有效出场，正分率 37.5%，赛季第 22 名</li><li>场均 -1,763.4（场均榜第 15），单场最高 +6,962（09.05），最低 -12,000（09.17）</li><li>最长 2 连正合计 +1,866，最长 4 连负；波动 4,240.1（第 5）；1 次单日第一、3 次单日前三</li><li>表现最好的月份 9 月 -11,331（全季无盈利月）</li></ul>
+    </article>
+    </div>
+  </section>
+
+  <section class="footer-banner">
+    <div class="line1">新的征程 已经开启</div>
+    <div class="line2">S8 赛季进行中！</div>
+    <div class="date">10.01 -</div>
+    <div class="line3">新的牌局，新的故事，新的荣誉，等你来书写。</div>
+  </section>
+</div>
+
+<!-- ── 海报放大查看 ── -->
+<div class="lightbox" id="lightbox" aria-hidden="true">
+  <button class="lightbox-mode" id="lbMode" type="button">↕ 看长图</button>
+  <button class="lightbox-close" id="lbClose" type="button" aria-label="关闭">✕</button>
+  <div class="lightbox-inner"><img id="lbImg" alt="S7 赛季总结海报" /></div>
+</div>
+
+<script>
+(function(){
+  var hero=document.getElementById('heroImg'),
+      lb=document.getElementById('lightbox'),
+      lbImg=document.getElementById('lbImg'),
+      lbMode=document.getElementById('lbMode');
+  if(!hero||!lb)return;
+  var srcImg=hero.querySelector('img');
+
+  function setMode(full){
+    lb.classList.toggle('full',full);
+    lbMode.textContent=full?'⤢ 看整张':'↕ 看长图';
+    if(full)lb.scrollTop=0;
+  }
+  function open(){
+    // 复用页面里已有的图片数据，不重复内嵌，文件体积不变
+    if(!lbImg.src)lbImg.src=srcImg.currentSrc||srcImg.src;
+    setMode(false);
+    lb.classList.add('open');
+    lb.setAttribute('aria-hidden','false');
+    document.body.classList.add('lb-open');
+    lb.scrollTop=0;
+  }
+  function close(){
+    lb.classList.remove('open');
+    lb.setAttribute('aria-hidden','true');
+    document.body.classList.remove('lb-open');
+  }
+
+  hero.addEventListener('click',open);
+  hero.addEventListener('keydown',function(e){
+    if(e.key==='Enter'||e.key===' '){e.preventDefault();open();}
+  });
+  document.getElementById('lbClose').addEventListener('click',close);
+  lbMode.addEventListener('click',function(){setMode(!lb.classList.contains('full'));});
+  // 点图片本身：整张 <-> 全宽 来回切；点图片外的空白：关闭
+  lbImg.addEventListener('click',function(e){
+    e.stopPropagation();
+    setMode(!lb.classList.contains('full'));
+  });
+  lb.addEventListener('click',close);
+  document.addEventListener('keydown',function(e){
+    if(e.key==='Escape'&&lb.classList.contains('open'))close();
+  });
+})();
+</script>
+</body>
+</html>

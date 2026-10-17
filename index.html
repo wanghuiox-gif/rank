@@ -660,7 +660,8 @@ function loadLocalData(){
 // 新赛季做完总结后，在这里加一行：S7:'s7-summary.html'
 // ⚠️ 必须声明在下面 boot() 之前 —— refreshSeasonChip() 在启动时就会读它。
 const SEASON_SUMMARY={
-  S6:'s6-summary.html'
+  S6:'s6-summary.html',
+  S7:'s7-summary.html'
 };
 function summaryURL(season){
   const f=SEASON_SUMMARY[season];
