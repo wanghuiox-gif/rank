@@ -731,6 +731,12 @@ function normDb(r){
 }
 // 比赛没有 id，用「赛季+日期+参赛名单」当唯一键
 function matchKey(m){return(m.season||'S5')+'|'+m.date+'|'+Object.keys(m.scores||{}).sort().join(',');}
+// 把对象里的某个 key 改名，顺序保持不变（delete+重加会把人挪到最后）
+function renameKey(o,from,to){
+  const out={};
+  Object.keys(o).forEach(k=>{out[k===from?to:k]=o[k];});
+  return out;
+}
 function mergeDbs(base,other){
   const out=normDb(JSON.parse(JSON.stringify(base)));
   // 本机主动删掉的，不再从 base（通常是云端）里捡回来
@@ -1857,11 +1863,31 @@ function removePlayer(name){
 function renamePlayer(){
   const old=document.getElementById('renameOld').value,n=document.getElementById('renameNew').value.trim();
   if(!old||!n){showToast('⚠️ 请选择旧名字并输入新名字');return;}
+  if(old===n){showToast('⚠️ 新旧名字一样');return;}
   if(roster().includes(n)){showToast('⚠️ 名字已存在');return;}
+  // 受影响的场次：净分或明细里出现过旧名字
+  const hit=db.matches.filter(m=>(m.scores&&old in m.scores)||(m.detail&&old in m.detail));
+  const lst=hit.length
+    ? hit.slice(0,8).map(m=>'　· '+m.date).join('\n')+(hit.length>8?'\n　…另外 '+(hit.length-8)+' 场':'')
+    : '　（无）';
+  if(!confirm('把「'+old+'」改成「'+n+'」？\n\n'
+    +'会改写 '+hit.length+' 场比赛的记录：\n'+lst+'\n\n'
+    +'改完无法一键撤销（要改回来得再改一次名）。'))return;
+  // 名字在 matchKey 里，改名等于让这些场次的旧键作废。
+  // 不打标记的话，推送时它们会被当成「云端独有」合并回来 → 每场变两条
+  hit.forEach(m=>tombs.add(matchKey(m)));
   tombs.add('player:'+old);
+  tombs.add('hidden:'+old);
   db.players=db.players.map(p=>p===old?n:p);
-  db.matches.forEach(m=>{if(m.scores&&old in m.scores){m.scores[n]=m.scores[old];delete m.scores[old];}});
-  pushCloud();document.getElementById('renameNew').value='';renderAll();showToast(`✅ ${old} → ${n}`);
+  hit.forEach(m=>{
+    if(m.scores&&old in m.scores)m.scores=renameKey(m.scores,old,n);
+    if(m.detail&&old in m.detail)m.detail=renameKey(m.detail,old,n);   // 明细也是按名字做 key
+  });
+  db.hidden=(db.hidden||[]).map(x=>x===old?n:x);
+  // 正在录入的缓存也一起换，避免改名后录入页错乱
+  if(entrySelected.has(old)){entrySelected.delete(old);entrySelected.add(n);}
+  if(entryVals&&old in entryVals){entryVals[n]=entryVals[old];delete entryVals[old];}
+  pushCloud();document.getElementById('renameNew').value='';renderAll();showToast(`✅ ${old} → ${n}（${hit.length} 场）`);
 }
 
 // ═══════════════════════════ EXPORT / IMPORT ═══════════════════════════
